@@ -18,6 +18,43 @@ zerg init --workers 3 --security strict
 zerg init --with-containers
 ```
 
+## Multi-Language Detection
+
+ZERG automatically detects **all languages** in your project and generates a multi-language devcontainer:
+
+```bash
+# Example output for a Python + TypeScript project
+$ zerg init
+Detected languages: javascript, python, typescript
+Detected frameworks: fastapi, react
+```
+
+### Devcontainer Features
+
+Multi-language projects use devcontainer "features" to add runtimes:
+
+| Language | Feature | Default Version |
+|----------|---------|-----------------|
+| Python | `ghcr.io/devcontainers/features/python:1` | 3.12 |
+| JavaScript/TypeScript | `ghcr.io/devcontainers/features/node:1` | 20 |
+| Go | `ghcr.io/devcontainers/features/go:1` | 1.22 |
+| Rust | `ghcr.io/devcontainers/features/rust:1` | latest |
+| Java | `ghcr.io/devcontainers/features/java:1` | 21 |
+| Ruby | `ghcr.io/devcontainers/features/ruby:1` | latest |
+| C#/.NET | `ghcr.io/devcontainers/features/dotnet:1` | 8.0 |
+
+### Custom Language Support
+
+Languages without official features use `postCreateCommand`:
+- **R**: `apt-get install r-base`
+- **Julia**: Official installer
+- **C++**: `build-essential cmake`
+
+### Single vs Multi-Language
+
+- **Single language**: Uses optimized pre-built image (faster startup)
+- **Multiple languages**: Uses base Ubuntu + features (flexible)
+
 ## Pre-Flight Checks
 
 ```bash

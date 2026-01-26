@@ -324,11 +324,67 @@ Options:
   -f, --feature TEXT       Feature name (auto-detected if not provided)
   -l, --level INTEGER      Start from specific level (default: 1)
   -g, --task-graph PATH    Path to task-graph.json
+  -m, --mode TEXT          Worker execution mode: subprocess, container, auto (default: auto)
   --dry-run                Show execution plan without starting workers
   --resume                 Continue from previous run
   --timeout INTEGER        Max execution time in seconds (default: 3600)
   -v, --verbose            Enable verbose output
 ```
+
+## Execution Modes
+
+### Auto Mode (Default)
+
+```bash
+zerg rush --mode auto
+```
+
+Auto-detection logic:
+1. If `.devcontainer/devcontainer.json` exists AND worker image is built → **container mode**
+2. Otherwise → **subprocess mode**
+
+### Subprocess Mode
+
+```bash
+zerg rush --mode subprocess
+```
+
+- Runs workers as local Python subprocesses
+- No Docker required
+- Suitable for local development and testing
+- Workers share the host environment
+
+### Container Mode
+
+```bash
+zerg rush --mode container
+```
+
+- Runs workers in isolated Docker containers
+- Requires Docker and built devcontainer image
+- Full environment isolation
+- Each worker has its own filesystem view
+
+### Container Setup
+
+To use container mode:
+
+```bash
+# 1. Initialize with container support
+zerg init --with-containers
+
+# 2. Build the devcontainer image
+devcontainer build --workspace-folder .
+
+# 3. Run with container mode
+zerg rush --mode container --workers 5
+```
+
+The ContainerLauncher:
+- Creates Docker network `zerg-internal` for worker isolation
+- Mounts worktrees as bind volumes
+- Passes ANTHROPIC_API_KEY to containers
+- Executes `.zerg/worker_entry.sh` in each container
 
 ## Resume Instructions
 

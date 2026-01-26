@@ -24,6 +24,12 @@ logger = get_logger("rush")
 @click.option("--resume", is_flag=True, help="Continue from previous run")
 @click.option("--timeout", default=3600, type=int, help="Max execution time (seconds)")
 @click.option("--task-graph", "-g", help="Path to task-graph.json")
+@click.option(
+    "--mode", "-m",
+    type=click.Choice(["subprocess", "container", "auto"]),
+    default="auto",
+    help="Worker execution mode (default: auto-detect)",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.pass_context
 def rush(
@@ -35,6 +41,7 @@ def rush(
     resume: bool,
     timeout: int,
     task_graph: str | None,
+    mode: str,
     verbose: bool,
 ) -> None:
     """Launch parallel worker execution.
@@ -48,6 +55,10 @@ def rush(
         zerg rush --feature user-auth --dry-run
 
         zerg rush --resume --workers 3
+
+        zerg rush --mode container --workers 5
+
+        zerg rush --mode subprocess --workers 3
     """
     # Setup logging
     if verbose:
@@ -84,7 +95,7 @@ def rush(
             task_data = load_and_validate_task_graph(task_graph_path)
 
         # Show summary
-        show_summary(task_data, workers)
+        show_summary(task_data, workers, mode)
 
         if dry_run:
             show_dry_run(task_data, workers, feature)
@@ -97,7 +108,7 @@ def rush(
                 return
 
         # Create orchestrator and start
-        orchestrator = Orchestrator(feature, config)
+        orchestrator = Orchestrator(feature, config, launcher_mode=mode)
 
         # Register callbacks
         orchestrator.on_task_complete(lambda tid: console.print(f"[green]✓[/green] Task {tid} complete"))
@@ -159,12 +170,13 @@ def find_task_graph(feature: str | None) -> Path | None:
     return None
 
 
-def show_summary(task_data: dict, workers: int) -> None:
+def show_summary(task_data: dict, workers: int, mode: str = "auto") -> None:
     """Show execution summary.
 
     Args:
         task_data: Task graph data
         workers: Worker count
+        mode: Execution mode (subprocess, container, auto)
     """
     tasks = task_data.get("tasks", [])
     levels = task_data.get("levels", {})
@@ -177,6 +189,7 @@ def show_summary(task_data: dict, workers: int) -> None:
     table.add_row("Total Tasks", str(len(tasks)))
     table.add_row("Levels", str(len(levels)))
     table.add_row("Workers", str(workers))
+    table.add_row("Mode", mode)
     table.add_row("Max Parallelization", str(task_data.get("max_parallelization", workers)))
 
     if "critical_path_minutes" in task_data:

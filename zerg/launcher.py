@@ -537,3 +537,435 @@ class SubprocessLauncher(WorkerLauncher):
             time.sleep(1)
 
         return {wid: h.status for wid, h in self._workers.items()}
+
+
+class ContainerLauncher(WorkerLauncher):
+    """Launch workers in Docker containers.
+
+    Uses devcontainer configuration to spawn isolated worker environments.
+    Each worker runs in its own container with mounted workspace.
+    """
+
+    # Container configuration
+    DEFAULT_NETWORK = "zerg-internal"
+    CONTAINER_PREFIX = "zerg-worker"
+    WORKER_ENTRY_SCRIPT = ".zerg/worker_entry.sh"
+
+    def __init__(
+        self,
+        config: LauncherConfig | None = None,
+        image_name: str = "zerg-worker",
+        network: str | None = None,
+    ) -> None:
+        """Initialize container launcher.
+
+        Args:
+            config: Launcher configuration
+            image_name: Docker image name for workers
+            network: Docker network name (default: zerg-internal)
+        """
+        super().__init__(config)
+        self.image_name = image_name
+        self.network = network or self.DEFAULT_NETWORK
+        self._container_ids: dict[int, str] = {}
+
+    def spawn(
+        self,
+        worker_id: int,
+        feature: str,
+        worktree_path: Path,
+        branch: str,
+        env: dict[str, str] | None = None,
+    ) -> SpawnResult:
+        """Spawn a new worker container.
+
+        Args:
+            worker_id: Unique worker identifier
+            feature: Feature name being worked on
+            worktree_path: Path to worker's git worktree
+            branch: Git branch for worker
+            env: Additional environment variables
+
+        Returns:
+            SpawnResult with handle or error
+        """
+        try:
+            # Validate worker_id
+            if not isinstance(worker_id, int) or worker_id < 0:
+                raise ValueError(f"Invalid worker_id: {worker_id}")
+
+            container_name = f"{self.CONTAINER_PREFIX}-{int(worker_id)}"
+
+            # Build environment
+            container_env = {
+                "ZERG_WORKER_ID": str(worker_id),
+                "ZERG_FEATURE": feature,
+                "ZERG_WORKTREE": "/workspace",
+                "ZERG_BRANCH": branch,
+            }
+
+            # Add API key from environment
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+            if api_key:
+                container_env["ANTHROPIC_API_KEY"] = api_key
+
+            # Validate and add additional env vars
+            if self.config.env_vars:
+                validated = validate_env_vars(self.config.env_vars)
+                container_env.update(validated)
+            if env:
+                validated = validate_env_vars(env)
+                container_env.update(validated)
+
+            # Start container
+            container_id = self._start_container(
+                container_name=container_name,
+                worktree_path=worktree_path,
+                env=container_env,
+            )
+
+            if not container_id:
+                return SpawnResult(
+                    success=False,
+                    worker_id=worker_id,
+                    error="Failed to start container",
+                )
+
+            # Create handle
+            handle = WorkerHandle(
+                worker_id=worker_id,
+                container_id=container_id,
+                status=WorkerStatus.INITIALIZING,
+            )
+
+            # Store references
+            self._workers[worker_id] = handle
+            self._container_ids[worker_id] = container_id
+
+            # Wait for container ready
+            if not self._wait_ready(container_id, timeout=30):
+                return SpawnResult(
+                    success=False,
+                    worker_id=worker_id,
+                    error="Container failed to become ready",
+                )
+
+            # Execute worker entry script
+            self._exec_worker_entry(container_id)
+
+            handle.status = WorkerStatus.RUNNING
+            logger.info(f"Spawned container {container_name} ({container_id[:12]})")
+
+            return SpawnResult(success=True, worker_id=worker_id, handle=handle)
+
+        except Exception as e:
+            logger.error(f"Failed to spawn container for worker {worker_id}: {e}")
+            return SpawnResult(success=False, worker_id=worker_id, error=str(e))
+
+    def _start_container(
+        self,
+        container_name: str,
+        worktree_path: Path,
+        env: dict[str, str],
+    ) -> str | None:
+        """Start a Docker container.
+
+        Args:
+            container_name: Name for the container
+            worktree_path: Host path to mount as workspace
+            env: Environment variables for container
+
+        Returns:
+            Container ID or None on failure
+        """
+        # Build docker run command
+        cmd = [
+            "docker", "run", "-d",
+            "--name", container_name,
+            "-v", f"{worktree_path.absolute()}:/workspace",
+            "-w", "/workspace",
+            "--network", self.network,
+        ]
+
+        # Add environment variables
+        for key, value in env.items():
+            cmd.extend(["-e", f"{key}={value}"])
+
+        # Add image and keep-alive command
+        cmd.extend([
+            self.image_name,
+            "tail", "-f", "/dev/null",  # Keep container running
+        ])
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+            if result.returncode == 0:
+                container_id = result.stdout.strip()
+                return container_id
+            else:
+                logger.error(f"Docker run failed: {result.stderr}")
+                return None
+
+        except subprocess.TimeoutExpired:
+            logger.error("Docker run timed out")
+            return None
+        except Exception as e:
+            logger.error(f"Docker run error: {e}")
+            return None
+
+    def _wait_ready(self, container_id: str, timeout: float = 30) -> bool:
+        """Wait for container to be ready.
+
+        Args:
+            container_id: Container ID
+            timeout: Maximum wait time in seconds
+
+        Returns:
+            True if container is running
+        """
+        import time
+
+        start = time.time()
+        while time.time() - start < timeout:
+            try:
+                result = subprocess.run(
+                    ["docker", "inspect", "-f", "{{.State.Running}}", container_id],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                if result.returncode == 0 and result.stdout.strip() == "true":
+                    return True
+            except (subprocess.TimeoutExpired, Exception):
+                pass
+            time.sleep(0.5)
+
+        return False
+
+    def _exec_worker_entry(self, container_id: str) -> bool:
+        """Execute the worker entry script in container.
+
+        Args:
+            container_id: Container ID
+
+        Returns:
+            True if execution started successfully
+        """
+        cmd = [
+            "docker", "exec", "-d",
+            container_id,
+            "/bin/bash", f"/workspace/{self.WORKER_ENTRY_SCRIPT}",
+        ]
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            return result.returncode == 0
+        except Exception as e:
+            logger.error(f"Failed to exec worker entry: {e}")
+            return False
+
+    def monitor(self, worker_id: int) -> WorkerStatus:
+        """Check worker container status.
+
+        Args:
+            worker_id: Worker to check
+
+        Returns:
+            Current worker status
+        """
+        handle = self._workers.get(worker_id)
+        container_id = self._container_ids.get(worker_id)
+
+        if not handle or not container_id:
+            return WorkerStatus.STOPPED
+
+        try:
+            # Check container state
+            result = subprocess.run(
+                ["docker", "inspect", "-f",
+                 "{{.State.Running}},{{.State.ExitCode}}",
+                 container_id],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode != 0:
+                handle.status = WorkerStatus.STOPPED
+                return WorkerStatus.STOPPED
+
+            running, exit_code = result.stdout.strip().split(",")
+
+            if running == "true":
+                if handle.status == WorkerStatus.INITIALIZING:
+                    handle.status = WorkerStatus.RUNNING
+                return handle.status
+            else:
+                # Container has exited
+                handle.exit_code = int(exit_code)
+
+                if exit_code == "0":
+                    handle.status = WorkerStatus.STOPPED
+                elif exit_code == "2":
+                    handle.status = WorkerStatus.CHECKPOINTING
+                elif exit_code == "3":
+                    handle.status = WorkerStatus.BLOCKED
+                else:
+                    handle.status = WorkerStatus.CRASHED
+
+                return handle.status
+
+        except Exception as e:
+            logger.error(f"Failed to monitor container: {e}")
+            return handle.status if handle else WorkerStatus.STOPPED
+
+    def terminate(self, worker_id: int, force: bool = False) -> bool:
+        """Terminate a worker container.
+
+        Args:
+            worker_id: Worker to terminate
+            force: Force termination (docker kill vs docker stop)
+
+        Returns:
+            True if termination succeeded
+        """
+        container_id = self._container_ids.get(worker_id)
+        handle = self._workers.get(worker_id)
+
+        if not container_id or not handle:
+            return False
+
+        try:
+            # Stop or kill container
+            cmd = ["docker", "kill" if force else "stop", container_id]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30 if not force else 10,
+            )
+
+            if result.returncode == 0:
+                handle.status = WorkerStatus.STOPPED
+                logger.info(f"Terminated container for worker {worker_id}")
+
+                # Remove container
+                subprocess.run(
+                    ["docker", "rm", "-f", container_id],
+                    capture_output=True,
+                    timeout=10,
+                )
+
+                return True
+            else:
+                logger.error(f"Failed to stop container: {result.stderr}")
+                return False
+
+        except subprocess.TimeoutExpired:
+            # Force kill on timeout
+            subprocess.run(
+                ["docker", "kill", container_id],
+                capture_output=True,
+                timeout=5,
+            )
+            handle.status = WorkerStatus.STOPPED
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to terminate container: {e}")
+            return False
+
+        finally:
+            # Clean up references
+            if worker_id in self._container_ids:
+                del self._container_ids[worker_id]
+
+    def get_output(self, worker_id: int, tail: int = 100) -> str:
+        """Get worker container logs.
+
+        Args:
+            worker_id: Worker to get output from
+            tail: Number of lines from end
+
+        Returns:
+            Output string
+        """
+        container_id = self._container_ids.get(worker_id)
+
+        if not container_id:
+            return ""
+
+        try:
+            result = subprocess.run(
+                ["docker", "logs", "--tail", str(tail), container_id],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            return result.stdout + result.stderr
+        except Exception as e:
+            logger.error(f"Failed to get container logs: {e}")
+            return ""
+
+    def ensure_network(self) -> bool:
+        """Ensure the Docker network exists.
+
+        Returns:
+            True if network exists or was created
+        """
+        try:
+            # Check if network exists
+            result = subprocess.run(
+                ["docker", "network", "inspect", self.network],
+                capture_output=True,
+                timeout=10,
+            )
+
+            if result.returncode == 0:
+                return True
+
+            # Create network
+            result = subprocess.run(
+                ["docker", "network", "create", self.network],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            if result.returncode == 0:
+                logger.info(f"Created Docker network: {self.network}")
+                return True
+            else:
+                logger.error(f"Failed to create network: {result.stderr}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Network setup error: {e}")
+            return False
+
+    def image_exists(self) -> bool:
+        """Check if the worker image exists.
+
+        Returns:
+            True if image exists locally
+        """
+        try:
+            result = subprocess.run(
+                ["docker", "image", "inspect", self.image_name],
+                capture_output=True,
+                timeout=10,
+            )
+            return result.returncode == 0
+        except Exception:
+            return False

@@ -7,23 +7,12 @@ import click
 from rich.console import Console
 from rich.table import Table
 
+from zerg.devcontainer_features import DynamicDevcontainerGenerator
 from zerg.logging import get_logger
-from zerg.security_rules import integrate_security_rules
+from zerg.security_rules import ProjectStack, detect_project_stack, integrate_security_rules
 
 console = Console()
 logger = get_logger("init")
-
-# Project type detection patterns
-PROJECT_PATTERNS = {
-    "python": ["pyproject.toml", "setup.py", "requirements.txt", "Pipfile"],
-    "node": ["package.json", "yarn.lock", "pnpm-lock.yaml"],
-    "rust": ["Cargo.toml"],
-    "go": ["go.mod"],
-    "java": ["pom.xml", "build.gradle", "build.gradle.kts"],
-    "ruby": ["Gemfile"],
-    "php": ["composer.json"],
-    "dotnet": ["*.csproj", "*.fsproj", "*.sln"],
-}
 
 
 @click.command()
@@ -78,24 +67,31 @@ def init(
             console.print("Use [cyan]--force[/cyan] to reinitialize.")
             return
 
-        # Detect project type
-        project_type = None
+        # Detect project stack (multi-language)
+        stack: ProjectStack | None = None
         if detect:
-            project_type = detect_project_type()
-            if project_type:
-                console.print(f"Detected project type: [cyan]{project_type}[/cyan]")
+            stack = detect_project_type()
+            if stack:
+                langs = ", ".join(sorted(stack.languages))
+                console.print(f"Detected languages: [cyan]{langs}[/cyan]")
+                if stack.frameworks:
+                    frameworks = ", ".join(sorted(stack.frameworks))
+                    console.print(f"Detected frameworks: [cyan]{frameworks}[/cyan]")
             else:
                 console.print("[dim]Could not detect project type[/dim]")
 
         # Create directory structure
         create_directory_structure()
 
+        # Get primary language for config (backwards compatibility)
+        primary_lang = get_primary_language(stack) if stack else None
+
         # Create configuration
-        config = create_config(workers, security, project_type)
+        config = create_config(workers, security, primary_lang)
         save_config(config)
 
-        # Create devcontainer if needed
-        create_devcontainer(project_type, security)
+        # Create devcontainer with multi-language support
+        create_devcontainer(stack, security)
 
         # Integrate secure coding rules if requested
         security_rules_result = None
@@ -121,7 +117,7 @@ def init(
 
         # Show summary
         show_summary(
-            workers, security, project_type, security_rules_result,
+            workers, security, stack, security_rules_result,
             container_built=container_built,
         )
 
@@ -136,24 +132,41 @@ def init(
         raise SystemExit(1) from e
 
 
-def detect_project_type() -> str | None:
-    """Detect project type from files.
+def detect_project_type() -> ProjectStack | None:
+    """Detect project type from files using comprehensive stack detection.
 
     Returns:
-        Project type string or None
+        ProjectStack with detected languages, frameworks, etc.
     """
     cwd = Path(".")
+    stack = detect_project_stack(cwd)
 
-    for project_type, patterns in PROJECT_PATTERNS.items():
-        for pattern in patterns:
-            if "*" in pattern:
-                # Glob pattern
-                if list(cwd.glob(pattern)):
-                    return project_type
-            else:
-                # Exact file
-                if (cwd / pattern).exists():
-                    return project_type
+    # Return None if no languages detected
+    if not stack.languages:
+        return None
+
+    return stack
+
+
+def get_primary_language(stack: ProjectStack) -> str | None:
+    """Get the primary language from a ProjectStack for config purposes.
+
+    Args:
+        stack: Detected project stack
+
+    Returns:
+        Primary language string or None
+    """
+    # Priority order for primary language
+    priority = ["python", "typescript", "javascript", "go", "rust", "java", "ruby", "csharp"]
+
+    for lang in priority:
+        if lang in stack.languages:
+            return lang
+
+    # Return first detected if not in priority list
+    if stack.languages:
+        return next(iter(stack.languages))
 
     return None
 
@@ -309,61 +322,33 @@ def save_config(config: dict) -> None:
     console.print(f"  [green]✓[/green] Created {config_path}")
 
 
-def create_devcontainer(project_type: str | None, security: str) -> None:
-    """Create devcontainer configuration.
+def create_devcontainer(stack: ProjectStack | None, security: str) -> None:
+    """Create devcontainer configuration with multi-language support.
 
     Args:
-        project_type: Project type
-        security: Security level
+        stack: Detected project stack (or None for generic container)
+        security: Security level (minimal, standard, strict)
     """
-    devcontainer_dir = Path(".devcontainer")
-    devcontainer_dir.mkdir(exist_ok=True)
+    # Get languages from stack or use empty set
+    languages = stack.languages if stack else set()
 
-    # Base image based on project type
-    images = {
-        "python": "mcr.microsoft.com/devcontainers/python:3.12",
-        "node": "mcr.microsoft.com/devcontainers/javascript-node:20",
-        "rust": "mcr.microsoft.com/devcontainers/rust:latest",
-        "go": "mcr.microsoft.com/devcontainers/go:latest",
-    }
+    # Use dynamic generator for multi-language support
+    generator = DynamicDevcontainerGenerator(
+        name="ZERG Worker",
+        install_claude=True,
+    )
 
-    base_image = images.get(project_type, "mcr.microsoft.com/devcontainers/base:ubuntu")
+    # Generate devcontainer.json
+    devcontainer_path = generator.write_devcontainer(
+        languages=languages,
+        security_level=security,
+    )
 
-    # Devcontainer config
-    devcontainer_config = {
-        "name": "ZERG Worker",
-        "image": base_image,
-        "features": {
-            "ghcr.io/devcontainers/features/git:1": {},
-            "ghcr.io/devcontainers/features/github-cli:1": {},
-        },
-        "customizations": {
-            "vscode": {
-                "extensions": [
-                    "anthropic.claude-code",
-                ],
-            },
-        },
-        "mounts": [
-            "source=${localWorkspaceFolder},target=/workspace,type=bind",
-        ],
-        "workspaceFolder": "/workspace",
-        "postCreateCommand": "echo 'ZERG worker ready'",
-    }
-
-    # Add security settings for strict mode
-    if security == "strict":
-        devcontainer_config["runArgs"] = [
-            "--read-only",
-            "--security-opt=no-new-privileges:true",
-        ]
-
-    # Write devcontainer.json
-    devcontainer_path = devcontainer_dir / "devcontainer.json"
-    with open(devcontainer_path, "w") as f:
-        json.dump(devcontainer_config, f, indent=2)
+    # Also generate worker entry script
+    generator.generate_worker_entry_script()
 
     console.print(f"  [green]✓[/green] Created {devcontainer_path}")
+    console.print("  [green]✓[/green] Created .zerg/worker_entry.sh")
 
 
 def build_devcontainer() -> bool:
@@ -482,7 +467,7 @@ def build_devcontainer() -> bool:
 def show_summary(
     workers: int,
     security: str,
-    project_type: str | None,
+    stack: ProjectStack | None,
     security_rules_result: dict | None = None,
     container_built: bool = False,
 ) -> None:
@@ -491,7 +476,7 @@ def show_summary(
     Args:
         workers: Worker count
         security: Security level
-        project_type: Project type
+        stack: Detected project stack
         security_rules_result: Results from security rules integration
         container_built: Whether container was built
     """
@@ -499,7 +484,18 @@ def show_summary(
     table.add_column("Setting", style="cyan")
     table.add_column("Value")
 
-    table.add_row("Project Type", project_type or "unknown")
+    # Show detected languages
+    if stack and stack.languages:
+        languages = ", ".join(sorted(stack.languages))
+        table.add_row("Languages", languages)
+    else:
+        table.add_row("Languages", "unknown")
+
+    # Show detected frameworks
+    if stack and stack.frameworks:
+        frameworks = ", ".join(sorted(stack.frameworks))
+        table.add_row("Frameworks", frameworks)
+
     table.add_row("Default Workers", str(workers))
     table.add_row("Security Level", security)
     table.add_row("Config Location", ".zerg/config.yaml")
@@ -508,12 +504,7 @@ def show_summary(
         table.add_row("Container Image", "[green]Built[/green]")
 
     if security_rules_result:
-        stack = security_rules_result.get("stack", {})
-        languages = ", ".join(stack.get("languages", [])) or "none"
-        frameworks = ", ".join(stack.get("frameworks", [])) or "none"
         table.add_row("Security Rules", f"{security_rules_result['rules_fetched']} files")
-        table.add_row("Detected Languages", languages)
-        table.add_row("Detected Frameworks", frameworks)
 
     console.print()
     console.print(table)

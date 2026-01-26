@@ -11,7 +11,13 @@ from zerg.config import ZergConfig
 from zerg.constants import LevelMergeStatus, TaskStatus, WorkerStatus
 from zerg.containers import ContainerManager
 from zerg.gates import GateRunner
-from zerg.launcher import LauncherConfig, LauncherType, SubprocessLauncher, WorkerLauncher
+from zerg.launcher import (
+    ContainerLauncher,
+    LauncherConfig,
+    LauncherType,
+    SubprocessLauncher,
+    WorkerLauncher,
+)
 from zerg.levels import LevelController
 from zerg.logging import get_logger
 from zerg.merge import MergeCoordinator, MergeFlowResult
@@ -35,6 +41,7 @@ class Orchestrator:
         feature: str,
         config: ZergConfig | None = None,
         repo_path: str | Path = ".",
+        launcher_mode: str | None = None,
     ) -> None:
         """Initialize orchestrator.
 
@@ -42,10 +49,12 @@ class Orchestrator:
             feature: Feature name being executed
             config: ZERG configuration
             repo_path: Path to git repository
+            launcher_mode: Launcher mode (subprocess, container, auto)
         """
         self.feature = feature
         self.config = config or ZergConfig.load()
         self.repo_path = Path(repo_path).resolve()
+        self._launcher_mode = launcher_mode
 
         # Initialize components
         self.state = StateManager(feature)
@@ -61,8 +70,8 @@ class Orchestrator:
         self.assigner: WorkerAssignment | None = None
         self.merger = MergeCoordinator(feature, self.config, repo_path)
 
-        # Initialize launcher based on config
-        self.launcher: WorkerLauncher = self._create_launcher()
+        # Initialize launcher based on config and mode
+        self.launcher: WorkerLauncher = self._create_launcher(mode=launcher_mode)
 
         # Runtime state
         self._running = False
@@ -73,23 +82,97 @@ class Orchestrator:
         self._poll_interval = 5  # seconds
         self._max_retry_attempts = self.config.workers.retry_attempts
 
-    def _create_launcher(self) -> WorkerLauncher:
-        """Create worker launcher based on config.
+    def _create_launcher(self, mode: str | None = None) -> WorkerLauncher:
+        """Create worker launcher based on config and mode.
+
+        Args:
+            mode: Launcher mode override (subprocess, container, auto)
+                  If None, uses config setting
 
         Returns:
             Configured WorkerLauncher instance
         """
-        launcher_type = self.config.get_launcher_type()
+        # Determine launcher type
+        if mode == "subprocess":
+            launcher_type = LauncherType.SUBPROCESS
+        elif mode == "container":
+            launcher_type = LauncherType.CONTAINER
+        elif mode == "auto" or mode is None:
+            # Auto-detect based on environment
+            launcher_type = self._auto_detect_launcher_type()
+        else:
+            launcher_type = self.config.get_launcher_type()
+
         config = LauncherConfig(
             launcher_type=launcher_type,
             timeout_seconds=self.config.workers.timeout_minutes * 60,
             log_dir=Path(self.config.logging.directory),
         )
 
-        if launcher_type == LauncherType.SUBPROCESS:
+        if launcher_type == LauncherType.CONTAINER:
+            # Use ContainerLauncher
+            launcher = ContainerLauncher(
+                config=config,
+                image_name=self._get_worker_image_name(),
+            )
+            # Ensure network exists
+            launcher.ensure_network()
+            logger.info("Using ContainerLauncher")
+            return launcher
+        else:
+            logger.info("Using SubprocessLauncher")
             return SubprocessLauncher(config)
-        # Container launcher can be added later
-        return SubprocessLauncher(config)
+
+    def _auto_detect_launcher_type(self) -> LauncherType:
+        """Auto-detect whether to use container or subprocess launcher.
+
+        Detection logic:
+        1. Check if devcontainer.json exists
+        2. Check if worker image is built
+        3. Fall back to subprocess if containers not available
+
+        Returns:
+            Detected LauncherType
+        """
+        devcontainer_path = self.repo_path / ".devcontainer" / "devcontainer.json"
+
+        # No devcontainer config = use subprocess
+        if not devcontainer_path.exists():
+            logger.debug("No devcontainer.json found, using subprocess mode")
+            return LauncherType.SUBPROCESS
+
+        # Check if image exists
+        image_name = self._get_worker_image_name()
+
+        try:
+            import subprocess as sp
+            result = sp.run(
+                ["docker", "image", "inspect", image_name],
+                capture_output=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                logger.debug(f"Found worker image {image_name}, using container mode")
+                return LauncherType.CONTAINER
+            else:
+                logger.debug(f"Worker image {image_name} not found, using subprocess mode")
+                return LauncherType.SUBPROCESS
+        except Exception as e:
+            logger.debug(f"Docker check failed ({e}), using subprocess mode")
+            return LauncherType.SUBPROCESS
+
+    def _get_worker_image_name(self) -> str:
+        """Get the worker image name.
+
+        Returns:
+            Docker image name for workers
+        """
+        # Check config first
+        if hasattr(self.config, "container_image"):
+            return self.config.container_image
+
+        # Default naming based on feature
+        return f"zerg-worker-{self.feature}"
 
     def start(
         self,
@@ -387,52 +470,41 @@ class Orchestrator:
         # Create worktree
         wt_info = self.worktrees.create(self.feature, worker_id)
 
-        # Use launcher to spawn worker (subprocess mode)
-        launcher_type = self.config.get_launcher_type()
+        # Use the unified launcher interface (works for both subprocess and container)
+        result = self.launcher.spawn(
+            worker_id=worker_id,
+            feature=self.feature,
+            worktree_path=wt_info.path,
+            branch=wt_info.branch,
+        )
 
-        if launcher_type == LauncherType.SUBPROCESS:
-            result = self.launcher.spawn(
-                worker_id=worker_id,
-                feature=self.feature,
-                worktree_path=wt_info.path,
-                branch=wt_info.branch,
-            )
+        if not result.success:
+            raise RuntimeError(f"Failed to spawn worker: {result.error}")
 
-            if not result.success:
-                raise RuntimeError(f"Failed to spawn worker: {result.error}")
+        # Get container ID if using ContainerLauncher
+        container_id = None
+        if result.handle and result.handle.container_id:
+            container_id = result.handle.container_id
 
-            # Create worker state
-            worker_state = WorkerState(
-                worker_id=worker_id,
-                status=WorkerStatus.RUNNING,
-                port=port,
-                worktree_path=str(wt_info.path),
-                branch=wt_info.branch,
-                started_at=datetime.now(),
-            )
-        else:
-            # Fall back to container mode
-            container_info = self.containers.start_worker(
-                worker_id=worker_id,
-                feature=self.feature,
-                port=port,
-                worktree_path=wt_info.path,
-                branch=wt_info.branch,
-            )
-
-            worker_state = WorkerState(
-                worker_id=worker_id,
-                status=WorkerStatus.RUNNING,
-                port=port,
-                container_id=container_info.container_id,
-                worktree_path=str(wt_info.path),
-                branch=wt_info.branch,
-                started_at=datetime.now(),
-            )
+        # Create worker state
+        worker_state = WorkerState(
+            worker_id=worker_id,
+            status=WorkerStatus.RUNNING,
+            port=port,
+            container_id=container_id,
+            worktree_path=str(wt_info.path),
+            branch=wt_info.branch,
+            started_at=datetime.now(),
+        )
 
         self._workers[worker_id] = worker_state
         self.state.set_worker_state(worker_state)
-        self.state.append_event("worker_started", {"worker_id": worker_id, "port": port})
+        self.state.append_event("worker_started", {
+            "worker_id": worker_id,
+            "port": port,
+            "container_id": container_id,
+            "mode": "container" if container_id else "subprocess",
+        })
 
         return worker_state
 
@@ -464,12 +536,8 @@ class Orchestrator:
 
         logger.info(f"Terminating worker {worker_id}")
 
-        # Stop via launcher or container
-        launcher_type = self.config.get_launcher_type()
-        if launcher_type == LauncherType.SUBPROCESS:
-            self.launcher.terminate(worker_id, force=force)
-        else:
-            self.containers.stop_worker(worker_id, force=force)
+        # Stop via unified launcher interface
+        self.launcher.terminate(worker_id, force=force)
 
         # Delete worktree
         try:
@@ -491,14 +559,9 @@ class Orchestrator:
 
     def _poll_workers(self) -> None:
         """Poll worker status and handle completions."""
-        launcher_type = self.config.get_launcher_type()
-
         for worker_id, worker in list(self._workers.items()):
-            # Check status via launcher or container
-            if launcher_type == LauncherType.SUBPROCESS:
-                status = self.launcher.monitor(worker_id)
-            else:
-                status = self.containers.get_status(worker_id)
+            # Check status via unified launcher interface
+            status = self.launcher.monitor(worker_id)
 
             if status == WorkerStatus.CRASHED:
                 logger.error(f"Worker {worker_id} crashed")
