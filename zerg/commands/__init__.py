@@ -1,9 +1,11 @@
 """ZERG CLI commands."""
 
 from zerg.commands.cleanup import cleanup
+from zerg.commands.design import design
 from zerg.commands.init import init
 from zerg.commands.logs import logs
 from zerg.commands.merge_cmd import merge_cmd
+from zerg.commands.plan import plan
 from zerg.commands.retry import retry
 from zerg.commands.rush import rush
 from zerg.commands.security_rules_cmd import security_rules_group
@@ -12,9 +14,11 @@ from zerg.commands.stop import stop
 
 __all__ = [
     "cleanup",
+    "design",
     "init",
     "logs",
     "merge_cmd",
+    "plan",
     "retry",
     "rush",
     "security_rules_group",
