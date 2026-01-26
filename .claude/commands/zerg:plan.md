@@ -2,6 +2,11 @@
 
 Capture complete requirements for feature: **$ARGUMENTS**
 
+## Flags
+
+- `--socratic` or `-s`: Use structured 3-round discovery mode
+- `--rounds N`: Number of rounds (default: 3, max: 5)
+
 ## Pre-Flight
 
 ```bash
@@ -28,6 +33,117 @@ echo "$(date -Iseconds)" > ".gsd/specs/$FEATURE/.started"
 **Press Shift+Tab twice** to enter plan mode (Opus 4.5 for reasoning).
 
 Plan mode gives you read-only tools to explore the codebase without making changes.
+
+---
+
+## Socratic Mode (--socratic)
+
+If `--socratic` flag is used, follow this structured 3-round discovery process:
+
+### Round 1: Problem Space (5 questions max)
+
+Focus on understanding the problem before jumping to solutions.
+
+```
+ROUND 1: PROBLEM SPACE
+══════════════════════
+
+1. What specific problem does this feature solve?
+   (Describe the pain point or gap)
+
+2. Who are the primary users affected by this problem?
+   (Be specific about user roles/personas)
+
+3. What happens today without this feature?
+   (Current workarounds, manual processes, or blocked workflows)
+
+4. Why is solving this problem important now?
+   (Business impact, urgency, opportunity cost)
+
+5. How will we know when the problem is solved?
+   (Observable changes, success indicators)
+```
+
+Wait for user responses before proceeding.
+
+### Round 2: Solution Space (5 questions max)
+
+Explore solution boundaries and constraints.
+
+```
+ROUND 2: SOLUTION SPACE
+═══════════════════════
+
+1. What does the ideal solution look like?
+   (Describe the vision without constraints)
+
+2. What constraints must we work within?
+   (Technical, time, budget, compatibility)
+
+3. What are the non-negotiable requirements?
+   (Must-haves vs nice-to-haves)
+
+4. What similar solutions exist? What can we learn from them?
+   (Prior art, competitors, analogies)
+
+5. What should this solution explicitly NOT do?
+   (Scope boundaries, anti-patterns)
+```
+
+Wait for user responses before proceeding.
+
+### Round 3: Implementation Space (5 questions max)
+
+Get concrete about execution.
+
+```
+ROUND 3: IMPLEMENTATION SPACE
+═════════════════════════════
+
+1. What is the minimum viable version of this feature?
+   (First releasable increment)
+
+2. What can be deferred to future iterations?
+   (Nice-to-haves, enhancements)
+
+3. What are the biggest technical risks?
+   (Unknowns, dependencies, complexity)
+
+4. How should we verify this works correctly?
+   (Test scenarios, acceptance criteria)
+
+5. What documentation or training is needed?
+   (User guides, API docs, runbooks)
+```
+
+After completing all rounds, synthesize into requirements.md.
+
+### Socratic Mode Output
+
+After completing the rounds, generate a transcript section:
+
+```markdown
+## Discovery Transcript
+
+### Round 1: Problem Space
+- Q1: {question}
+  A: {answer}
+- Q2: {question}
+  A: {answer}
+...
+
+### Round 2: Solution Space
+- Q1: {question}
+  A: {answer}
+...
+
+### Round 3: Implementation Space
+- Q1: {question}
+  A: {answer}
+...
+```
+
+---
 
 ## Phase 1: Context Gathering
 
