@@ -52,3 +52,4 @@ yarn-error.log*
 # Archives
 *.zip
 *.tar.gz
+.zerg/state/

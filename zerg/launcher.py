@@ -586,7 +586,8 @@ class ContainerLauncher(WorkerLauncher):
     """
 
     # Container configuration
-    DEFAULT_NETWORK = "zerg-internal"
+    # Use default bridge network for internet access (required for API calls)
+    DEFAULT_NETWORK = "bridge"
     CONTAINER_PREFIX = "zerg-worker"
     WORKER_ENTRY_SCRIPT = ".zerg/worker_entry.sh"
 
@@ -723,6 +724,13 @@ class ContainerLauncher(WorkerLauncher):
         main_repo = worktree_path.parent.parent.parent  # .zerg-worktrees/feature/worker-N -> repo
         state_dir = main_repo / ".zerg" / "state"
 
+        # Git worktrees need access to:
+        # 1. The worktree metadata in main repo's .git/worktrees/<name>
+        # 2. The main repo's .git directory for objects/refs
+        worktree_name = worktree_path.name  # e.g., "worker-0"
+        main_git_dir = main_repo / ".git"
+        git_worktree_dir = main_git_dir / "worktrees" / worktree_name
+
         # Mount ~/.claude for OAuth credentials if it exists
         claude_config_dir = Path.home() / ".claude"
 
@@ -730,7 +738,7 @@ class ContainerLauncher(WorkerLauncher):
         # This is required because --dangerously-skip-permissions doesn't work as root
         uid = os.getuid()
         gid = os.getgid()
-        home_dir = f"/home/worker"
+        home_dir = "/home/worker"
 
         cmd = [
             "docker", "run", "-d",
@@ -739,6 +747,16 @@ class ContainerLauncher(WorkerLauncher):
             "-v", f"{worktree_path.absolute()}:/workspace",
             "-v", f"{state_dir.absolute()}:/workspace/.zerg/state",  # Share state with orchestrator
         ]
+
+        # Mount main repo's .git and worktree metadata for git operations inside container
+        if main_git_dir.exists() and git_worktree_dir.exists():
+            # Mount the main .git to /repo/.git so git can find objects/refs
+            cmd.extend(["-v", f"{main_git_dir.absolute()}:/repo/.git:ro"])
+            # Mount the worktree metadata
+            cmd.extend(["-v", f"{git_worktree_dir.absolute()}:/workspace/.git-worktree"])
+            # Pass env vars so entry script can fix the git paths
+            env["ZERG_GIT_WORKTREE_DIR"] = "/workspace/.git-worktree"
+            env["ZERG_GIT_MAIN_DIR"] = "/repo/.git"
 
         # Add Claude config mount for OAuth authentication (needs write for debug logs)
         if claude_config_dir.exists():
