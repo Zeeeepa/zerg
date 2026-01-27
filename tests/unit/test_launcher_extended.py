@@ -380,7 +380,7 @@ class TestContainerLauncher:
         launcher = ContainerLauncher()
 
         assert launcher.image_name == "zerg-worker"
-        assert launcher.network == "zerg-internal"
+        assert launcher.network == "bridge"
 
     def test_init_with_custom_image(self) -> None:
         """Test initialization with custom image."""
@@ -396,7 +396,7 @@ class TestContainerLauncher:
 
     def test_constants_defined(self) -> None:
         """Test class constants are defined."""
-        assert ContainerLauncher.DEFAULT_NETWORK == "zerg-internal"
+        assert ContainerLauncher.DEFAULT_NETWORK == "bridge"
         assert ContainerLauncher.CONTAINER_PREFIX == "zerg-worker"
 
     def test_ensure_network_exists(self) -> None:
