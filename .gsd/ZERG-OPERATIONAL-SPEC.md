@@ -794,6 +794,25 @@ gitleaks detect --source .
 
 ## State Management
 
+### Hybrid State Architecture
+
+ZERG uses a hybrid approach for state management:
+
+1. **JSON State Files** (`.zerg/state/{feature}.json`): Source of truth for execution state
+   - Workers read/write via `StateManager`
+   - Crash-safe, inspectable, git-friendly
+   - Full task status, worker assignments, retry counts
+
+2. **Claude Tasks Bridge** (`TaskSyncBridge`): One-way sync to Claude Tasks API
+   - Orchestrator creates Claude Tasks when levels start
+   - Polling loop syncs JSON state → Claude Tasks
+   - Provides orchestrator-level visibility in Claude's task UI
+
+3. **GSD Spec Injection** (`SpecLoader`): Auto-loads specs into worker prompts
+   - Workers receive feature context (requirements + design) automatically
+   - Specs loaded once at worker init, injected as prompt prefix
+   - Truncated if >2000 tokens to preserve context budget
+
 ### Spec Files as Memory
 
 Workers are stateless. All coordination flows through spec files:
@@ -805,6 +824,35 @@ Workers are stateless. All coordination flows through spec files:
 | `ARCHITECTURE.md` | Technical design | Architect | Workers |
 | `tasks/*.md` | Implementation specs | Architect | Workers |
 | `STATE.md` | Progress and decisions | Orchestrator | All agents |
+
+### Worker Prompt Structure
+
+When workers execute tasks, their prompts include:
+
+```markdown
+# Feature Context: {feature}
+## Requirements Summary
+{key requirements from requirements.md}
+
+## Design Decisions
+{key decisions from design.md}
+
+---
+# Task: {task_title}
+{task prompt with description, files, verification}
+```
+
+### Environment Variables
+
+Workers receive context via environment:
+
+| Variable | Purpose |
+|----------|---------|
+| `ZERG_WORKER_ID` | Worker identifier |
+| `ZERG_FEATURE` | Feature name |
+| `ZERG_WORKTREE` | Path to worker's git worktree |
+| `ZERG_BRANCH` | Worker's git branch |
+| `ZERG_SPEC_DIR` | Path to feature spec directory |
 
 ### Session Resumption
 

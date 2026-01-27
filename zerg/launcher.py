@@ -27,6 +27,7 @@ ALLOWED_ENV_VARS = {
     "ZERG_WORKTREE",
     "ZERG_BRANCH",
     "ZERG_TASK_ID",
+    "ZERG_SPEC_DIR",
     "ZERG_LOG_LEVEL",
     "ZERG_DEBUG",
     # Common development env vars
@@ -319,6 +320,7 @@ class SubprocessLauncher(WorkerLauncher):
                 "ZERG_FEATURE": feature,
                 "ZERG_WORKTREE": str(worktree_path),
                 "ZERG_BRANCH": branch,
+                "ZERG_SPEC_DIR": str(worktree_path / ".gsd" / "specs" / feature),
             })
             # Validate additional env vars from config
             if self.config.env_vars:
@@ -602,6 +604,7 @@ class ContainerLauncher(WorkerLauncher):
                 "ZERG_FEATURE": feature,
                 "ZERG_WORKTREE": "/workspace",
                 "ZERG_BRANCH": branch,
+                "ZERG_SPEC_DIR": f"/workspace/.gsd/specs/{feature}",
             }
 
             # Add API key from environment

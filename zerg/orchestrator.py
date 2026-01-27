@@ -24,6 +24,7 @@ from zerg.merge import MergeCoordinator, MergeFlowResult
 from zerg.parser import TaskParser
 from zerg.ports import PortAllocator
 from zerg.state import StateManager
+from zerg.task_sync import TaskSyncBridge
 from zerg.types import WorkerState
 from zerg.worktree import WorktreeManager
 
@@ -69,6 +70,7 @@ class Orchestrator:
         )
         self.assigner: WorkerAssignment | None = None
         self.merger = MergeCoordinator(feature, self.config, repo_path)
+        self.task_sync = TaskSyncBridge(feature, self.state)
 
         # Initialize launcher based on config and mode
         self.launcher: WorkerLauncher = self._create_launcher(mode=launcher_mode)
@@ -244,6 +246,12 @@ class Orchestrator:
         self.state.append_event("rush_stopped", {"force": force})
         self.state.save()
 
+        # Generate STATE.md for human-readable status
+        try:
+            self.state.generate_state_md()
+        except Exception as e:
+            logger.warning(f"Failed to generate STATE.md: {e}")
+
         logger.info("Orchestration stopped")
 
     def status(self) -> dict[str, Any]:
@@ -331,6 +339,13 @@ class Orchestrator:
         self.state.set_level_status(level, "running")
         self.state.append_event("level_started", {"level": level, "tasks": len(task_ids)})
 
+        # Create Claude Tasks for this level
+        level_tasks = [self.parser.get_task(tid) for tid in task_ids]
+        level_tasks = [t for t in level_tasks if t is not None]
+        if level_tasks:
+            self.task_sync.create_level_tasks(level, level_tasks)
+            logger.info(f"Created {len(level_tasks)} Claude Tasks for level {level}")
+
         # Assign tasks to workers
         for task_id in task_ids:
             if self.assigner:
@@ -362,6 +377,12 @@ class Orchestrator:
 
             # Rebase worker branches onto merged base
             self._rebase_all_workers(level)
+
+            # Generate STATE.md after level completion
+            try:
+                self.state.generate_state_md()
+            except Exception as e:
+                logger.warning(f"Failed to generate STATE.md: {e}")
 
             # Notify callbacks
             for callback in self._on_level_complete:
@@ -559,6 +580,9 @@ class Orchestrator:
 
     def _poll_workers(self) -> None:
         """Poll worker status and handle completions."""
+        # Sync Claude Tasks with current state
+        self.task_sync.sync_state()
+
         for worker_id, worker in list(self._workers.items()):
             # Check status via unified launcher interface
             status = self.launcher.monitor(worker_id)

@@ -15,6 +15,7 @@ from zerg.context_tracker import ContextTracker
 from zerg.git_ops import GitOps
 from zerg.logging import get_logger, set_worker_context
 from zerg.parser import TaskParser
+from zerg.spec_loader import SpecLoader
 from zerg.state import StateManager
 from zerg.types import Task
 from zerg.verify import VerificationExecutor
@@ -121,6 +122,21 @@ class WorkerProtocol:
             except Exception as e:
                 logger.warning(f"Failed to load task graph: {e}")
                 self.task_parser = None
+
+        # Spec loader for feature context injection
+        spec_dir = os.environ.get("ZERG_SPEC_DIR")
+        if spec_dir:
+            # Use parent of spec_dir as GSD root (spec_dir is .gsd/specs/{feature})
+            gsd_root = Path(spec_dir).parent.parent
+            self.spec_loader = SpecLoader(gsd_dir=gsd_root)
+        else:
+            self.spec_loader = SpecLoader(gsd_dir=self.worktree_path / ".gsd")
+
+        # Pre-load feature specs for prompt injection
+        self._spec_context: str = ""
+        if self.spec_loader.specs_exist(self.feature):
+            self._spec_context = self.spec_loader.load_and_format(self.feature)
+            logger.info(f"Loaded spec context for {self.feature} ({len(self._spec_context)} chars)")
 
         # Runtime state
         self.current_task: Task | None = None
@@ -424,6 +440,9 @@ class WorkerProtocol:
     def _build_task_prompt(self, task: Task) -> str:
         """Build a Claude Code prompt from task specification.
 
+        Includes feature context (requirements/design specs) as a prefix
+        when available, followed by the task-specific prompt.
+
         Args:
             task: Task specification
 
@@ -431,6 +450,10 @@ class WorkerProtocol:
             Formatted prompt string
         """
         parts = []
+
+        # Inject feature context if available
+        if self._spec_context:
+            parts.append(self._spec_context)
 
         # Task header
         parts.append(f"# Task: {task.get('title', task['id'])}")

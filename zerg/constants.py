@@ -109,4 +109,5 @@ LEVEL_NAMES = {
 STATE_DIR = ".zerg/state"
 LOGS_DIR = ".zerg/logs"
 WORKTREES_DIR = ".zerg-worktrees"
+GSD_DIR = ".gsd"
 SPECS_DIR = ".gsd/specs"
