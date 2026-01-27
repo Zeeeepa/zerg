@@ -173,8 +173,8 @@ class Orchestrator:
         if hasattr(self.config, "container_image"):
             return self.config.container_image
 
-        # Default naming based on feature
-        return f"zerg-worker-{self.feature}"
+        # Default to standard worker image
+        return "zerg-worker"
 
     def start(
         self,

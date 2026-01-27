@@ -1,26 +1,34 @@
 #!/bin/bash
-# ZERG Worker Entry - Invokes Claude with native task list
+# ZERG Worker Entry - Invokes worker_main to execute assigned tasks
 set -e
 
 WORKER_ID=${ZERG_WORKER_ID:-0}
-TASK_LIST_ID=${ZERG_TASK_LIST_ID}
+FEATURE=${ZERG_FEATURE}
 WORKTREE=${ZERG_WORKTREE:-/workspace}
+BRANCH=${ZERG_BRANCH}
+SPEC_DIR=${ZERG_SPEC_DIR}
 
 echo "========================================"
 echo "ZERG Worker $WORKER_ID starting..."
-echo "Task List: $TASK_LIST_ID"
+echo "Feature: $FEATURE"
 echo "Worktree: $WORKTREE"
+echo "Branch: $BRANCH"
+echo "Spec Dir: $SPEC_DIR"
 echo "========================================"
 
 cd "$WORKTREE"
 
-# Check if Claude CLI is available
-if ! command -v claude &> /dev/null; then
-    echo "ERROR: Claude CLI not found. Installing..."
-    npm install -g @anthropic/claude-code
+# Install ZERG dependencies if not already installed
+if ! python3 -c "import pydantic" 2>/dev/null; then
+    echo "Installing ZERG dependencies..."
+    pip3 install -q --break-system-packages -e . 2>/dev/null || \
+        pip3 install -q --break-system-packages pydantic click rich jsonschema
 fi
 
-# Launch Claude Code with task list (native feature)
-exec claude --task-list "$TASK_LIST_ID" \
-     --dangerously-skip-permissions \
-     --env ZERG_WORKER_ID="$WORKER_ID"
+# Run the ZERG worker main
+exec python3 -m zerg.worker_main \
+     --worker-id "$WORKER_ID" \
+     --feature "$FEATURE" \
+     --worktree "$WORKTREE" \
+     --branch "$BRANCH" \
+     --verbose

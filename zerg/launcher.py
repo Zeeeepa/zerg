@@ -799,6 +799,7 @@ class ContainerLauncher(WorkerLauncher):
         """
         cmd = [
             "docker", "exec", "-d",
+            "-w", "/workspace",
             container_id,
             "/bin/bash", f"/workspace/{self.WORKER_ENTRY_SCRIPT}",
         ]
