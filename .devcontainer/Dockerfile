@@ -51,6 +51,10 @@ RUN pip3 install --break-system-packages \
 # Create directories
 RUN mkdir -p /root/.claude/tasks /workspace
 
+# Configure git user identity for automated commits
+RUN git config --global user.email "zerg-worker@local" && \
+    git config --global user.name "ZERG Worker"
+
 # Set working directory
 WORKDIR /workspace
 
