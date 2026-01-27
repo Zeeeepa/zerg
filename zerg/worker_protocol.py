@@ -358,9 +358,11 @@ class WorkerProtocol:
         prompt = self._build_task_prompt(task)
 
         # Build command - use --print for non-interactive execution
+        # --dangerously-skip-permissions allows tool execution in automated mode
         cmd = [
             CLAUDE_CLI_COMMAND,
             "--print",
+            "--dangerously-skip-permissions",
             prompt,
         ]
 
