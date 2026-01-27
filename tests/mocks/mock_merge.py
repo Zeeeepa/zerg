@@ -1,7 +1,8 @@
-"""Mock MergeCoordinator with timeout and failure simulation.
+"""Mock MergeCoordinator with full merge flow simulation.
 
 Provides MockMergeCoordinator for testing orchestrator merge handling
-with configurable timeout, retry, and failure scenarios.
+with configurable timeout, retry, failure scenarios, and complete
+merge flow simulation including gates, execute, and finalize.
 """
 
 from __future__ import annotations
@@ -12,7 +13,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from zerg.constants import GateResult, MergeStatus
 from zerg.merge import MergeFlowResult
+from zerg.types import GateRunResult, MergeResult
 
 
 @dataclass
@@ -79,9 +82,21 @@ class MockMergeCoordinator:
         self._always_succeed: bool = True
         self._gate_failure_levels: set[int] = set()
         self._conflicting_files: list[str] = []
+        self._pre_merge_gate_failure_levels: set[int] = set()
+        self._post_merge_gate_failure_levels: set[int] = set()
+        self._execute_merge_conflict_branches: set[str] = set()
+        self._finalize_fails: bool = False
+        self._gate_delay: float = 0.0
 
         # Results to return
         self._custom_results: dict[int, MergeFlowResult] = {}
+
+        # Gate results tracking
+        self._gate_runs: list[GateRunResult] = []
+        self._merge_results: list[MergeResult] = []
+
+        # Current level being processed (for gate methods)
+        self._current_level: int = 0
 
     def configure(
         self,
@@ -93,6 +108,11 @@ class MockMergeCoordinator:
         always_succeed: bool = True,
         gate_failure_levels: list[int] | None = None,
         conflicting_files: list[str] | None = None,
+        pre_merge_gate_failure_levels: list[int] | None = None,
+        post_merge_gate_failure_levels: list[int] | None = None,
+        execute_merge_conflict_branches: list[str] | None = None,
+        finalize_fails: bool = False,
+        gate_delay: float = 0.0,
     ) -> MockMergeCoordinator:
         """Configure mock behavior.
 
@@ -103,8 +123,13 @@ class MockMergeCoordinator:
             conflict_at_level: Level to simulate conflict at
             timeout_at_attempt: Attempt to simulate timeout at
             always_succeed: Default success behavior
-            gate_failure_levels: Levels where gates fail
+            gate_failure_levels: Levels where gates fail (legacy, applies to both)
             conflicting_files: Files that conflict
+            pre_merge_gate_failure_levels: Levels where pre-merge gates fail
+            post_merge_gate_failure_levels: Levels where post-merge gates fail
+            execute_merge_conflict_branches: Branches that cause conflicts in execute_merge
+            finalize_fails: Whether finalize operation fails
+            gate_delay: Simulated gate execution delay in seconds
 
         Returns:
             Self for chaining
@@ -117,6 +142,11 @@ class MockMergeCoordinator:
         self._always_succeed = always_succeed
         self._gate_failure_levels = set(gate_failure_levels or [])
         self._conflicting_files = conflicting_files or []
+        self._pre_merge_gate_failure_levels = set(pre_merge_gate_failure_levels or [])
+        self._post_merge_gate_failure_levels = set(post_merge_gate_failure_levels or [])
+        self._execute_merge_conflict_branches = set(execute_merge_conflict_branches or [])
+        self._finalize_fails = finalize_fails
+        self._gate_delay = gate_delay
         return self
 
     def set_result(self, level: int, result: MergeFlowResult) -> None:
@@ -323,6 +353,65 @@ class MockMergeCoordinator:
         self._attempts.clear()
         self._attempt_count = 0
         self._custom_results.clear()
+        self._gate_runs.clear()
+        self._merge_results.clear()
+        self._current_level = 0
+
+    def get_gate_runs(self) -> list[GateRunResult]:
+        """Get all gate execution results.
+
+        Returns:
+            List of GateRunResult records
+        """
+        return self._gate_runs.copy()
+
+    def get_pre_merge_gate_runs(self) -> list[GateRunResult]:
+        """Get pre-merge gate execution results.
+
+        Returns:
+            List of pre-merge GateRunResult records
+        """
+        return [g for g in self._gate_runs if g.gate_name == "pre_merge_check"]
+
+    def get_post_merge_gate_runs(self) -> list[GateRunResult]:
+        """Get post-merge gate execution results.
+
+        Returns:
+            List of post-merge GateRunResult records
+        """
+        return [g for g in self._gate_runs if g.gate_name == "post_merge_check"]
+
+    def get_merge_results(self) -> list[MergeResult]:
+        """Get all merge operation results.
+
+        Returns:
+            List of MergeResult records
+        """
+        return self._merge_results.copy()
+
+    def get_successful_merges(self) -> list[MergeResult]:
+        """Get successful merge results.
+
+        Returns:
+            List of successful MergeResult records
+        """
+        return [m for m in self._merge_results if m.status == MergeStatus.MERGED]
+
+    def get_conflict_merges(self) -> list[MergeResult]:
+        """Get merge results that had conflicts.
+
+        Returns:
+            List of conflicting MergeResult records
+        """
+        return [m for m in self._merge_results if m.status == MergeStatus.CONFLICT]
+
+    def set_current_level(self, level: int) -> None:
+        """Set the current level for gate operations.
+
+        Args:
+            level: Current level number
+        """
+        self._current_level = level
 
     # Additional methods to match MergeCoordinator interface
 
@@ -336,7 +425,157 @@ class MockMergeCoordinator:
         Returns:
             Staging branch name
         """
+        self._current_level = level
         return f"zerg/{self.feature}/staging"
+
+    def run_pre_merge_gates(
+        self,
+        cwd: str | Path | None = None,
+    ) -> tuple[bool, list[GateRunResult]]:
+        """Run mock pre-merge quality gates.
+
+        Args:
+            cwd: Working directory (ignored in mock)
+
+        Returns:
+            Tuple of (all_passed, results)
+        """
+        # Apply configured delay
+        if self._gate_delay > 0:
+            time.sleep(self._gate_delay)
+
+        # Check for pre-merge gate failure at current level
+        level = self._current_level
+        should_fail = (
+            level in self._pre_merge_gate_failure_levels
+            or level in self._gate_failure_levels
+        )
+
+        result = GateRunResult(
+            gate_name="pre_merge_check",
+            result=GateResult.FAIL if should_fail else GateResult.PASS,
+            command="pytest tests/",
+            exit_code=1 if should_fail else 0,
+            stdout="" if should_fail else "All tests passed",
+            stderr="Test failures detected" if should_fail else "",
+            duration_ms=int(self._gate_delay * 1000) if self._gate_delay else 100,
+        )
+
+        self._gate_runs.append(result)
+        return (not should_fail, [result])
+
+    def run_post_merge_gates(
+        self,
+        cwd: str | Path | None = None,
+    ) -> tuple[bool, list[GateRunResult]]:
+        """Run mock post-merge quality gates.
+
+        Args:
+            cwd: Working directory (ignored in mock)
+
+        Returns:
+            Tuple of (all_passed, results)
+        """
+        # Apply configured delay
+        if self._gate_delay > 0:
+            time.sleep(self._gate_delay)
+
+        # Check for post-merge gate failure at current level
+        level = self._current_level
+        should_fail = level in self._post_merge_gate_failure_levels
+
+        result = GateRunResult(
+            gate_name="post_merge_check",
+            result=GateResult.FAIL if should_fail else GateResult.PASS,
+            command="pytest tests/ --integration",
+            exit_code=1 if should_fail else 0,
+            stdout="" if should_fail else "Integration tests passed",
+            stderr="Integration test failures" if should_fail else "",
+            duration_ms=int(self._gate_delay * 1000) if self._gate_delay else 100,
+        )
+
+        self._gate_runs.append(result)
+        return (not should_fail, [result])
+
+    def execute_merge(
+        self,
+        source_branches: list[str],
+        staging_branch: str,
+    ) -> list[MergeResult]:
+        """Merge source branches into staging branch.
+
+        Args:
+            source_branches: Worker branches to merge
+            staging_branch: Target staging branch
+
+        Returns:
+            List of MergeResult for each merge
+
+        Raises:
+            MergeConflict simulation via return value with CONFLICT status
+        """
+        from zerg.exceptions import MergeConflict
+
+        results = []
+
+        for branch in source_branches:
+            # Check for conflict simulation
+            if (
+                branch in self._execute_merge_conflict_branches
+                or self._conflict_at_level == self._current_level
+            ):
+                conflict_files = self._conflicting_files or [f"{branch}_file.py"]
+                result = MergeResult(
+                    source_branch=branch,
+                    target_branch=staging_branch,
+                    status=MergeStatus.CONFLICT,
+                    conflicting_files=conflict_files,
+                    error_message=f"Merge conflict in {conflict_files}",
+                )
+                results.append(result)
+                self._merge_results.append(result)
+                raise MergeConflict(
+                    f"Merge conflict: {branch}",
+                    source_branch=branch,
+                    target_branch=staging_branch,
+                    conflicting_files=conflict_files,
+                )
+
+            # Successful merge
+            commit = f"merge_{branch}_{self._attempt_count:04d}"
+            result = MergeResult(
+                source_branch=branch,
+                target_branch=staging_branch,
+                status=MergeStatus.MERGED,
+                commit_sha=commit,
+            )
+            results.append(result)
+            self._merge_results.append(result)
+
+        return results
+
+    def finalize(
+        self,
+        staging_branch: str,
+        target_branch: str,
+    ) -> str:
+        """Finalize merge by merging staging into target.
+
+        Args:
+            staging_branch: Staging branch with merged changes
+            target_branch: Final target branch
+
+        Returns:
+            Merge commit SHA
+
+        Raises:
+            Exception: If finalize_fails is configured
+        """
+        if self._finalize_fails:
+            raise Exception("Simulated finalize failure")
+
+        commit = f"final_{self._attempt_count:04d}"
+        return commit
 
     def abort(self, staging_branch: str | None = None) -> None:
         """Mock abort - no-op.
