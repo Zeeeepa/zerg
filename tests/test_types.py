@@ -460,7 +460,7 @@ class TestWorkerAssignments:
 
         assert assignments.feature == "user-auth"
         assert assignments.worker_count == 3
-        assert assignments.assignments == []
+        assert assignments.not assignments
 
     def test_get_worker_tasks(self) -> None:
         """Test getting all tasks for a worker."""

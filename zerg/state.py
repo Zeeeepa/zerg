@@ -197,8 +197,9 @@ class StateManager:
             if current_status not in (TaskStatus.TODO.value, TaskStatus.PENDING.value):
                 return False
 
-            # Check if already claimed
-            if task_state.get("worker_id") is not None:
+            # Check if already claimed by a different worker
+            existing_worker = task_state.get("worker_id")
+            if existing_worker is not None and existing_worker != worker_id:
                 return False
 
             # Claim it

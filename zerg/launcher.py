@@ -28,6 +28,8 @@ ALLOWED_ENV_VARS = {
     "ZERG_BRANCH",
     "ZERG_TASK_ID",
     "ZERG_SPEC_DIR",
+    "ZERG_STATE_DIR",
+    "ZERG_REPO_PATH",
     "ZERG_LOG_LEVEL",
     "ZERG_DEBUG",
     # Common development env vars
@@ -342,6 +344,8 @@ class SubprocessLauncher(WorkerLauncher):
         """
         try:
             # Build environment with ZERG-specific vars (always allowed)
+            # Use current directory as main repo path (workers run in worktrees)
+            repo_path = Path.cwd().resolve()
             worker_env = os.environ.copy()
             worker_env.update({
                 "ZERG_WORKER_ID": str(worker_id),
@@ -349,6 +353,8 @@ class SubprocessLauncher(WorkerLauncher):
                 "ZERG_WORKTREE": str(worktree_path),
                 "ZERG_BRANCH": branch,
                 "ZERG_SPEC_DIR": str(worktree_path / ".gsd" / "specs" / feature),
+                "ZERG_STATE_DIR": str(repo_path / ".zerg" / "state"),
+                "ZERG_REPO_PATH": str(repo_path),
             })
             # Validate additional env vars from config
             if self.config.env_vars:
