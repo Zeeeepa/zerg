@@ -274,6 +274,34 @@ class WorkerLauncher(ABC):
             "alive": sum(1 for h in self._workers.values() if h.is_alive()),
         }
 
+    def sync_state(self) -> dict[int, WorkerStatus]:
+        """Reconcile internal state with actual worker status.
+
+        Polls all tracked workers and updates their status.
+        Removes handles for workers that have stopped.
+
+        Returns:
+            Dictionary of worker_id to current status
+        """
+        results: dict[int, WorkerStatus] = {}
+        stopped_workers: list[int] = []
+
+        for worker_id in list(self._workers.keys()):
+            status = self.monitor(worker_id)
+            results[worker_id] = status
+
+            # Track stopped workers for cleanup
+            if status in (WorkerStatus.STOPPED, WorkerStatus.CRASHED):
+                stopped_workers.append(worker_id)
+
+        # Clean up stopped workers from tracking
+        for worker_id in stopped_workers:
+            if worker_id in self._workers:
+                logger.debug(f"Removing stopped worker {worker_id} from tracking")
+                del self._workers[worker_id]
+
+        return results
+
 
 class SubprocessLauncher(WorkerLauncher):
     """Launch workers as subprocess instances.
@@ -465,6 +493,9 @@ class SubprocessLauncher(WorkerLauncher):
             # Clean up references
             if worker_id in self._processes:
                 del self._processes[worker_id]
+            # Also remove from worker handles to prevent stale state
+            if worker_id in self._workers:
+                del self._workers[worker_id]
 
     def get_output(self, worker_id: int, tail: int = 100) -> str:
         """Get worker subprocess output.
@@ -893,6 +924,9 @@ class ContainerLauncher(WorkerLauncher):
             # Clean up references
             if worker_id in self._container_ids:
                 del self._container_ids[worker_id]
+            # Also remove from worker handles to prevent stale state
+            if worker_id in self._workers:
+                del self._workers[worker_id]
 
     def get_output(self, worker_id: int, tail: int = 100) -> str:
         """Get worker container logs.

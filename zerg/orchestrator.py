@@ -223,6 +223,10 @@ class Orchestrator:
         # Start execution
         self._running = True
         self._spawn_workers(worker_count)
+
+        # Wait for workers to initialize before starting level
+        self._wait_for_initialization(timeout=600)
+
         self._start_level(start_level or 1)
         self._main_loop()
 
@@ -544,6 +548,58 @@ class Orchestrator:
                 logger.error(f"Failed to spawn worker {worker_id}: {e}")
                 # Continue with other workers
 
+    def _wait_for_initialization(self, timeout: int = 600) -> bool:
+        """Wait for all workers to initialize.
+
+        Args:
+            timeout: Maximum wait time in seconds (default 600 = 10 minutes)
+
+        Returns:
+            True if all workers initialized successfully
+        """
+        logger.info("Waiting for workers to initialize...")
+
+        start_time = time.time()
+        check_interval = 2  # seconds
+
+        while time.time() - start_time < timeout:
+            all_ready = True
+            failed_workers = []
+
+            for worker_id, worker in list(self._workers.items()):
+                status = self.launcher.monitor(worker_id)
+
+                if status in (WorkerStatus.RUNNING, WorkerStatus.READY, WorkerStatus.IDLE):
+                    # Worker is ready
+                    worker.status = status
+                    continue
+                elif status in (WorkerStatus.CRASHED, WorkerStatus.STOPPED):
+                    # Worker failed during init
+                    failed_workers.append(worker_id)
+                    logger.warning(f"Worker {worker_id} failed during initialization")
+                else:
+                    # Still initializing
+                    all_ready = False
+
+            # Handle failed workers
+            for worker_id in failed_workers:
+                if worker_id in self._workers:
+                    del self._workers[worker_id]
+
+            if all_ready and self._workers:
+                elapsed = time.time() - start_time
+                logger.info(f"All {len(self._workers)} workers initialized in {elapsed:.1f}s")
+                return True
+
+            if not self._workers:
+                logger.error("All workers failed during initialization")
+                return False
+
+            time.sleep(check_interval)
+
+        logger.warning(f"Initialization timeout after {timeout}s")
+        return len(self._workers) > 0  # Continue if any workers are ready
+
     def _terminate_worker(self, worker_id: int, force: bool = False) -> None:
         """Terminate a worker.
 
@@ -583,7 +639,14 @@ class Orchestrator:
         # Sync Claude Tasks with current state
         self.task_sync.sync_state()
 
+        # Sync launcher state to clean up terminated workers
+        self.launcher.sync_state()
+
         for worker_id, worker in list(self._workers.items()):
+            # Skip workers already marked as stopped/crashed (already handled)
+            if worker.status in (WorkerStatus.STOPPED, WorkerStatus.CRASHED):
+                continue
+
             # Check status via unified launcher interface
             status = self.launcher.monitor(worker_id)
 
@@ -600,6 +663,9 @@ class Orchestrator:
                         "Worker crashed",
                     )
 
+                # Handle exit (will respawn if needed)
+                self._handle_worker_exit(worker_id)
+
             elif status == WorkerStatus.CHECKPOINTING:
                 logger.info(f"Worker {worker_id} checkpointing")
                 worker.status = WorkerStatus.CHECKPOINTING
@@ -608,6 +674,8 @@ class Orchestrator:
 
             elif status == WorkerStatus.STOPPED:
                 # Worker exited - check for completion
+                worker.status = WorkerStatus.STOPPED
+                self.state.set_worker_state(worker)
                 self._handle_worker_exit(worker_id)
 
             # Update health check
@@ -694,13 +762,28 @@ class Orchestrator:
                     for callback in self._on_task_complete:
                         callback(worker.current_task)
 
-        # Restart worker for more tasks
+        # Remove worker from tracking FIRST to prevent respawn loops
+        old_worktree = worker.worktree_path
+        old_port = worker.port
+        del self._workers[worker_id]
+
+        # Release port
+        if old_port:
+            self.ports.release(old_port)
+
+        # Restart worker for more tasks (with new state)
         remaining = self._get_remaining_tasks_for_level(self.levels.current_level)
-        if remaining:
+        if remaining and self._running:
             try:
                 self._spawn_worker(worker_id)
             except Exception as e:
                 logger.error(f"Failed to restart worker {worker_id}: {e}")
+                # Clean up worktree if spawn failed
+                if old_worktree:
+                    try:
+                        self.worktrees.delete(Path(old_worktree), force=True)
+                    except Exception as cleanup_err:
+                        logger.warning(f"Failed to clean up worktree: {cleanup_err}")
 
     def _get_remaining_tasks_for_level(self, level: int) -> list[str]:
         """Get remaining tasks for a level.

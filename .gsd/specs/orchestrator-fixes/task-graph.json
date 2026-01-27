@@ -1,0 +1,199 @@
+{
+  "feature": "orchestrator-fixes",
+  "created_at": "2026-01-27T00:00:00Z",
+  "version": "2.0",
+  "tasks": [
+    {
+      "id": "OFX-001",
+      "title": "Create schema validation tests",
+      "description": "TDD: Create comprehensive tests for schema validation including level bounds (reject 0, accept >= 1), files structure validation, ID pattern validation, and schema loading. Tests should fail initially until OFX-005/OFX-007 are implemented.",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["tests/unit/test_schema_validation.py"],
+        "modify": [],
+        "read": ["zerg/validation.py", "zerg/schemas/task_graph.json"]
+      },
+      "verification": {
+        "command": "python -c \"import tests.unit.test_schema_validation; print('Test module created')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "OFX-002",
+      "title": "Create worker lifecycle tests",
+      "description": "TDD: Create tests for worker spawn, terminate, restart, state transitions, worktree cleanup, spawn failure handling. Tests should define expected behavior for OFX-008.",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["tests/unit/test_worker_lifecycle.py"],
+        "modify": [],
+        "read": ["zerg/orchestrator.py", "zerg/launcher.py"]
+      },
+      "verification": {
+        "command": "python -c \"import tests.unit.test_worker_lifecycle; print('Test module created')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "OFX-003",
+      "title": "Create state sync tests",
+      "description": "TDD: Create tests for orchestrator-launcher state synchronization, handle consistency, status accuracy. Tests should define expected behavior for OFX-009.",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["tests/unit/test_state_sync.py"],
+        "modify": [],
+        "read": ["zerg/orchestrator.py", "zerg/launcher.py"]
+      },
+      "verification": {
+        "command": "python -c \"import tests.unit.test_state_sync; print('Test module created')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "OFX-004",
+      "title": "Create orchestrator integration tests",
+      "description": "TDD: Create end-to-end tests for worker lifecycle, level transitions, failure recovery, initialization wait. Tests should define expected behavior for full rush cycle.",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["tests/integration/test_orchestrator_fixes.py"],
+        "modify": [],
+        "read": ["zerg/orchestrator.py", "zerg/launcher.py", "zerg/worktree.py"]
+      },
+      "verification": {
+        "command": "python -c \"import tests.integration.test_orchestrator_fixes; print('Test module created')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "OFX-005",
+      "title": "Consolidate schema definitions",
+      "description": "Update zerg/schemas/task_graph.json to be single source of truth: level >= 1, files optional but validated as arrays. Archive old schema to .zerg/schemas/archived/task-graph.schema.json and add archived/ to .gitignore. Update .zerg/task_graph.py to not load old schema.",
+      "level": 2,
+      "dependencies": ["OFX-001"],
+      "files": {
+        "create": [".zerg/schemas/archived/task-graph.schema.json"],
+        "modify": ["zerg/schemas/task_graph.json", ".zerg/task_graph.py", ".gitignore"],
+        "read": [".zerg/schemas/task-graph.schema.json"]
+      },
+      "verification": {
+        "command": "python -c \"import json; s=json.load(open('zerg/schemas/task_graph.json')); assert s['definitions']['task']['properties']['level']['minimum'] == 1; print('Schema consolidated')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "OFX-006",
+      "title": "Update validation module",
+      "description": "Update zerg/validation.py to: 1) Add explicit level >= 1 check with clear error message, 2) Improve files structure validation, 3) Add schema version checking, 4) Improve error messages. Should make OFX-001 tests pass.",
+      "level": 2,
+      "dependencies": ["OFX-001"],
+      "files": {
+        "create": [],
+        "modify": ["zerg/validation.py"],
+        "read": ["zerg/schemas/task_graph.json"]
+      },
+      "verification": {
+        "command": "pytest tests/unit/test_schema_validation.py -v --tb=short",
+        "timeout_seconds": 60
+      }
+    },
+    {
+      "id": "OFX-007",
+      "title": "Fix orchestrator worker management",
+      "description": "Comprehensive fix for orchestrator.py: 1) Fix worker termination race - don't delete until restart completes, 2) Fix poll loop - safe iteration, atomic state updates, 3) Add worktree cleanup before restart, 4) Improve spawn failure handling, 5) Add WorkerTracker as top-level class (not inner class), 6) Add _wait_for_initialization() with 600s default timeout. Should make OFX-002 tests pass.",
+      "level": 2,
+      "dependencies": ["OFX-002"],
+      "files": {
+        "create": [],
+        "modify": ["zerg/orchestrator.py"],
+        "read": ["zerg/worktree.py"]
+      },
+      "verification": {
+        "command": "pytest tests/unit/test_worker_lifecycle.py -v --tb=short",
+        "timeout_seconds": 120
+      }
+    },
+    {
+      "id": "OFX-008",
+      "title": "Fix launcher state sync",
+      "description": "Add sync_state() method to launcher to reconcile internal state with orchestrator. Ensure launcher and orchestrator worker dictionaries stay consistent. Should make OFX-003 tests pass.",
+      "level": 2,
+      "dependencies": ["OFX-003"],
+      "files": {
+        "create": [],
+        "modify": ["zerg/launcher.py"],
+        "read": []
+      },
+      "verification": {
+        "command": "pytest tests/unit/test_state_sync.py -v --tb=short",
+        "timeout_seconds": 60
+      }
+    },
+    {
+      "id": "OFX-009",
+      "title": "Update parser integration",
+      "description": "Remove any jsonschema calls to old schema in zerg/parser.py. Use validate_task_graph() only. Ensure backward compatibility with existing task graphs.",
+      "level": 3,
+      "dependencies": ["OFX-005", "OFX-006"],
+      "files": {
+        "create": [],
+        "modify": ["zerg/parser.py"],
+        "read": ["zerg/validation.py"]
+      },
+      "verification": {
+        "command": "python -c \"from zerg.parser import TaskParser; print('Parser updated')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "OFX-010",
+      "title": "Update design command",
+      "description": "Ensure design command generates valid task graphs with level >= 1 and proper files structure {create, modify, read}. Update template generation to use 1-indexed levels.",
+      "level": 3,
+      "dependencies": ["OFX-005", "OFX-006"],
+      "files": {
+        "create": [],
+        "modify": ["zerg/commands/design.py"],
+        "read": ["zerg/validation.py"]
+      },
+      "verification": {
+        "command": "python -c \"from zerg.commands.design import create_task_graph; print('Design command updated')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "OFX-011",
+      "title": "Update skill documentation",
+      "description": "Update zerg:rush.md and zerg:design.md skills with: 1) Schema requirements (level >= 1), 2) Files structure format {create, modify, read}, 3) Dependency rules (must be lower level), 4) File ownership rules.",
+      "level": 4,
+      "dependencies": ["OFX-010"],
+      "files": {
+        "create": [],
+        "modify": [".claude/commands/zerg:rush.md", ".claude/commands/zerg:design.md"],
+        "read": []
+      },
+      "verification": {
+        "command": "grep -q 'level >= 1\\|level must be' .claude/commands/zerg:design.md && echo 'Skills updated'",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "OFX-012",
+      "title": "Final integration tests",
+      "description": "Create comprehensive integration tests: 1) Full rush cycle test, 2) Schema validation end-to-end, 3) Worker lifecycle end-to-end. Run all tests to verify fixes.",
+      "level": 5,
+      "dependencies": ["OFX-004", "OFX-007", "OFX-008", "OFX-009", "OFX-010", "OFX-011"],
+      "files": {
+        "create": ["tests/integration/test_full_rush_cycle.py"],
+        "modify": [],
+        "read": []
+      },
+      "verification": {
+        "command": "pytest tests/integration/test_full_rush_cycle.py tests/integration/test_orchestrator_fixes.py -v --tb=short",
+        "timeout_seconds": 180
+      }
+    }
+  ]
+}

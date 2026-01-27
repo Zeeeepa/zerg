@@ -1,0 +1,79 @@
+{
+  "feature": "orchestrator-fixes",
+  "worker_count": 4,
+  "assignments": [
+    {
+      "task_id": "OFX-001",
+      "worker_id": 0,
+      "level": 0,
+      "estimated_minutes": 15
+    },
+    {
+      "task_id": "OFX-002",
+      "worker_id": 1,
+      "level": 0,
+      "estimated_minutes": 15
+    },
+    {
+      "task_id": "OFX-003",
+      "worker_id": 2,
+      "level": 0,
+      "estimated_minutes": 15
+    },
+    {
+      "task_id": "OFX-004",
+      "worker_id": 3,
+      "level": 0,
+      "estimated_minutes": 15
+    },
+    {
+      "task_id": "OFX-005",
+      "worker_id": 0,
+      "level": 0,
+      "estimated_minutes": 15
+    },
+    {
+      "task_id": "OFX-006",
+      "worker_id": 1,
+      "level": 0,
+      "estimated_minutes": 15
+    },
+    {
+      "task_id": "OFX-007",
+      "worker_id": 2,
+      "level": 0,
+      "estimated_minutes": 15
+    },
+    {
+      "task_id": "OFX-008",
+      "worker_id": 3,
+      "level": 0,
+      "estimated_minutes": 15
+    },
+    {
+      "task_id": "OFX-009",
+      "worker_id": 0,
+      "level": 0,
+      "estimated_minutes": 15
+    },
+    {
+      "task_id": "OFX-010",
+      "worker_id": 1,
+      "level": 0,
+      "estimated_minutes": 15
+    },
+    {
+      "task_id": "OFX-011",
+      "worker_id": 0,
+      "level": 0,
+      "estimated_minutes": 15
+    },
+    {
+      "task_id": "OFX-012",
+      "worker_id": 0,
+      "level": 0,
+      "estimated_minutes": 15
+    }
+  ],
+  "generated_at": "2026-01-27T05:04:51.972457"
+}

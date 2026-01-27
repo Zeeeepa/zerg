@@ -2,6 +2,7 @@
 .zerg-worktrees/
 .zerg/logs/
 .zerg/*.pid
+.zerg/schemas/archived/
 .factory/temp/
 
 # Environment
