@@ -136,7 +136,12 @@ pip install -e .
 
 # Or install with development dependencies (testing, linting, etc.)
 pip install -e ".[dev]"
+
+# Make /zerg:* commands available in ALL Claude Code sessions (any project)
+zerg install-commands
 ```
+
+The `install-commands` step symlinks ZERG's 19 command files into `~/.claude/commands/` so they work globally. Use `--force` to overwrite existing files, `--copy` to copy instead of symlink (auto-enabled on Windows), or `--target <dir>` for a custom location. To remove them later: `zerg uninstall-commands`.
 
 ### Verifying Your Installation
 
@@ -2067,35 +2072,6 @@ This tutorial builds a Starcraft 2 themed ecommerce API and covers:
 - Handling failures and retries
 - Quality gates and merging
 - Final cleanup
-
----
-
-## Global Installation
-
-By default, `/zerg:*` commands are only available inside the ZERG project directory. To make them available in **every** Claude Code session (any project):
-
-```bash
-pip install -e .
-zerg install-commands
-```
-
-This symlinks the 19 ZERG command files into `~/.claude/commands/` so they're available globally. Running `zerg init` in any project also auto-installs them if they're missing.
-
-**Options:**
-
-| Flag | Effect |
-|------|--------|
-| `--force` | Overwrite existing command files |
-| `--copy` | Copy files instead of symlinking (auto-enabled on Windows) |
-| `--target <dir>` | Install to a custom directory |
-
-**To uninstall:**
-
-```bash
-zerg uninstall-commands
-```
-
-**Verify:** Open Claude Code in a different project directory and run `/zerg:status` — it should respond with ZERG output.
 
 ---
 
