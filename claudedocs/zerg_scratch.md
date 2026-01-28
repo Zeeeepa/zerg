@@ -322,7 +322,7 @@ the devcontainer build needs to be dynamic based on the project requirements. If
 
 
 <task>
-run all tests. ensure 100% coverage.Produce a development plan to implement all findings completely and successfully with no unaddressed stubs and complete integration. Ensure all dependencies downstream as a result of this refactoring are addressed (such as updating skills and commands). Create tests prior to developimng. Do so using superclaude workflows to maximize parallelization. Use the new claude tasks feature and save tasks in the task directory
+Run the full test suite. ensure 100% coverage. Then produce a development plan to implement all findings completely and successfully with no unaddressed stubs and complete integration. Ensure all dependencies downstream as a result of this refactoring are addressed (such as updating skills and commands). Create tests prior to developimng. Do so using zerg rush (no containers) to maximize parallelization. Use the new claude tasks feature and save tasks in the task directory
 </task>
 
 <planning_approach>
@@ -348,3 +348,187 @@ Output task backlog as persistent artifact. Update after each development sessio
 
 
 in addition to Create pre-commit hook (.zerg/hooks/pre-commit) for non-ASCII detection, what else should we create pre-commit hooks for in order to maximize security and code quality (or any other use cases you can think of)?  
+
+
+###BUILD CONTAINER###
+
+claudedocs/plan-container-dogfooding.md
+
+
+<task>
+Produce a development plan for implementing the DC-012 integration tests completely and successfully with no unaddressed stubs and complete integration. Ensure all dependencies downstream as a result of this refactoring are addressed (such as updating skills and commands). Create tests prior to developing to ensure 100% test coverage. Do so using "zerg rush" to maximize parallelization. Use the new claude tasks feature and save tasks in the task directory
+</task>
+
+<planning_approach>
+Apply ZERG's own methodology manually:
+1. Break implementation into atomic tasks with exclusive file ownership
+2. Order tasks by dependency level
+3. Define verification command for each task
+4. Estimate parallelization potential for future ZERG self-improvement
+5. Each task must accurately update the backlog item as complete
+</planning_approach>
+
+<output>
+Task backlog in markdown with (created in the tasks directory):
+- Task ID, description, files owned, dependencies, verification command
+- Grouped by implementation level
+- Critical path highlighted
+- Total estimated sessions to completion
+</output>
+
+<state_management>
+Output task backlog as persistent artifact. Update after each development session with completion status and blockers.
+</state_management>
+
+
+<task>
+Troubleshoot why the task graph was written incorrectly and why "zerg rush" had orchestration issues. Then, Produce a development plan for implementing the fixes completely and successfully with no unaddressed stubs and complete integration. Ensure all dependencies downstream as a result of this refactoring are addressed (such as updating skills and commands). Create tests prior to developing to ensure 100% test coverage. Do so using "zerg rush" to maximize parallelization. Use the new claude tasks feature and save tasks in the task directory
+</task>
+
+<planning_approach>
+Apply ZERG's own methodology manually:
+1. Break implementation into atomic tasks with exclusive file ownership
+2. Order tasks by dependency level
+3. Define verification command for each task
+4. Estimate parallelization potential for future ZERG self-improvement
+5. Each task must accurately update the backlog item as complete
+</planning_approach>
+
+<output>
+Task backlog in markdown with (created in the tasks directory):
+- Task ID, description, files owned, dependencies, verification command
+- Grouped by implementation level
+- Critical path highlighted
+- Total estimated sessions to completion
+</output>
+
+<state_management>
+Output task backlog as persistent artifact. Update after each development session with completion status and blockers.
+</state_management>
+
+
+Good question. A few useful features that would exercise the full ZERG workflow:                                                                                     
+  ┌──────────────────────┬───────┬─────────────────┬─────────────────────────────────────────────────────────┐                                                         
+  │       Feature        │ Tasks │ Parallelization │                          Value                          │                                                         
+  ├──────────────────────┼───────┼─────────────────┼─────────────────────────────────────────────────────────┤                                                         
+                                                          
+  ├──────────────────────┼───────┼─────────────────┼─────────────────────────────────────────────────────────┤                                                         
+  │ Log aggregation: Consolidate worker logs into single view with filtering │                                                         
+  ├──────────────────────┼───────┼─────────────────┼─────────────────────────────────────────────────────────┤                                                         
+  │ Task retry logic: Auto-retry failed tasks with backoff, max attempts      │                                                         
+  ├──────────────────────┼───────┼─────────────────┼─────────────────────────────────────────────────────────┤                                                         
+                                                          
+  ├──────────────────────┼───────┼─────────────────┼─────────────────────────────────────────────────────────┤                                                         
+  │ Dry-run improvements: Better simulation of rush without actual execution      │                                                         
+  └──────────────────────┴───────┴─────────────────┴─────────────────────────────────────────────────────────┘
+
+ Verification                                                                                                │                                                   
+     │                                                                                                             │                                                   
+     │ # Run all tests                                                                                             │                                                   
+     │ pytest tests/unit/test_metrics.py tests/integration/test_metrics_integration.py -v                          │                                                   
+     │                                                                                                             │                                                   
+     │ # Test with real rush (dry-run)                                                                             │                                                   
+     │ zerg rush --feature worker-metrics --dry-run --mode auto                                                    │                                                   
+     │                                                                                                             │                                                   
+     │ # Verify status shows metrics (after a real rush)                                                           │                                                   
+     │ zerg status --feature <feature>                                                                             │                                                   
+     │                                                                                                             │                                                   
+     │ ---                                                                                                         │                                                   
+     │ ZERG Execution                                                                                              │                                                   
+     │                                                                                                             │                                                   
+     │ # 1. Run design phase                                                                                       │                                                   
+     │ /zerg:design                                                                                                │                                                   
+     │                                                                                                             │                                                   
+     │ # 2. Execute rush in container mode                                                                         │                                                   
+     │ zerg rush --feature worker-metrics --workers 3 --mode container                                             │                                                   
+     │                                                                                                             │                                                   
+     │ # 3. Monitor                                                                                                │                                                   
+     │ zerg status --feature worker-metrics    
+
+1. Orchestrator doesn't automatically advance levels (bug)
+2. docker exec -d for worker entry doesn't always work                                                        
+3. Commit verification fails even when commits succeed  
+
+
+<task>
+Troubleshoot:
+
+1. Clean up unstaged test_cmd.py changes
+2. Fix PytestCollectionWarnings (rename Test* classes)
+3. Fix RuntimeWarnings in main.py / worker_main.py
+4. Delete backlog file
+
+Then, Produce a development plan for implementing the fixes completely and successfully with no unaddressed stubs and complete integration. Ensure all dependencies downstream as a result of this refactoring are addressed (such as updating skills and commands). Create tests prior to developing to ensure 100% test coverage. Do so using "zerg rush with no container" to maximize parallelization. Use the new claude tasks feature and save tasks in the task directory
+</task>
+
+<planning_approach>
+Apply ZERG's own methodology manually:
+1. Break implementation into atomic tasks with exclusive file ownership
+2. Order tasks by dependency level
+3. Define verification command for each task
+4. Estimate parallelization potential for future ZERG self-improvement
+5. Each task must accurately update the backlog item as complete
+</planning_approach>
+
+<output>
+Task backlog in markdown with (created in the tasks directory):
+- Task ID, description, files owned, dependencies, verification command
+- Grouped by implementation level
+- Critical path highlighted
+- Total estimated sessions to completion
+</output>
+
+<state_management>
+Output task backlog as persistent artifact. Update after each development session with completion status and blockers.
+</state_management>
+
+     I'm working on something that lets multiple Claude Code instances execute tasks in parallel without stepping on each other’s code. It combines spec-driven and test-driven development with Claude’s new native Tasks feature and git worktrees to achieve much higher throughput compared to sequential development. Each AI worker gets its own isolated devcontainer (key for isolation and security purposes) with fresh context, so you can overwhelm a project through coordinated parallel execution rather than grinding through tasks one at a time. It will also dynamically pull in in secure coding rules from my claude code secure rules repo. Essentially… building a secure, isolated, vibe coding agent swarm. Will open source it.
+
+
+ Troubleshoot why The ZERG orchestrator completed Level 1 tasks but didn't trigger the merge/level-advancement automatically. 
+
+<task>
+Validate that the "zerg design" command and skill optimizes the design for the new Claude Task system features and follows the following planning approach:
+
+1. Break implementation into atomic tasks with exclusive file ownership
+2. Order tasks by dependency level
+3. Define verification command for each task
+4. Estimate parallelization potential for future ZERG self-improvement
+5. Each task must accurately update the backlog item as complete
+
+That generates the following output:
+
+Task backlog in markdown with (created in the tasks directory):
+- Task ID, description, files owned, dependencies, verification command
+- Grouped by implementation level
+- Critical path highlighted
+- Total estimated sessions to completion
+
+With the following state management:
+
+Output task backlog as persistent artifact. Update after each development session with completion status and blockers.
+
+Then, Produce plan for implementing any adjustments or fixes completely and successfully with no unaddressed stubs and complete integration. Ensure all dependencies downstream as a result of this refactoring are addressed (such as updating skills and commands). Create tests prior to developing to ensure 100% test coverage. Do so using "zerg rush with no container" to maximize parallelization. Use the new claude tasks feature and save tasks in the task directory
+</task>
+
+Use the same planning approach, output, and state management when executing this request.
+ <planning_approach>
+Apply ZERG's own methodology manually:
+1. Break implementation into atomic tasks with exclusive file ownership
+2. Order tasks by dependency level
+3. Define verification command for each task
+4. Estimate parallelization potential for future ZERG self-improvement
+5. Each task must accurately update the backlog item as complete
+</planning_approach>
+
+<output>
+Task backlog in markdown with (created in the tasks directory):
+- Task ID, description, files owned, dependencies, verification command
+- Grouped by implementation level
+- Critical path highlighted
+- Total estimated sessions to completion
+</output>
+
+<state_management>
+Output task backlog as persistent artifact. Update after each development session with completion status and blockers.
+</state_management>
