@@ -12,7 +12,7 @@ ZERG is a distributed software development system that coordinates multiple Clau
 - [System Layers](#system-layers)
 - [Execution Flow](#execution-flow)
 - [Module Reference](#module-reference)
-- [Worker Execution Model](#worker-execution-model)
+- [Zergling Execution Model](#zergling-execution-model)
 - [State Management](#state-management)
 - [Quality Gates](#quality-gates)
 - [Pre-commit Hooks](#pre-commit-hooks)
@@ -25,12 +25,12 @@ ZERG is a distributed software development system that coordinates multiple Clau
 
 ### Spec as Memory
 
-Workers do not share conversation context. They share:
+Zerglings do not share conversation context. They share:
 - `requirements.md` — what to build
 - `design.md` — how to build it
 - `task-graph.json` — atomic work units
 
-This makes workers **stateless**. Any worker can pick up any task. Crash recovery is trivial.
+This makes zerglings **stateless**. Any zergling can pick up any task. Crash recovery is trivial.
 
 ### Exclusive File Ownership
 
@@ -59,18 +59,18 @@ Tasks are organized into dependency levels:
 | 4 | Testing | Unit and integration tests |
 | 5 | Quality | Docs, cleanup |
 
-All workers complete Level N before any proceed to N+1. The orchestrator merges all branches, runs quality gates, then signals workers to continue.
+All zerglings complete Level N before any proceed to N+1. The orchestrator merges all branches, runs quality gates, then signals zerglings to continue.
 
 ### Git Worktrees for Isolation
 
-Each worker operates in its own git worktree with its own branch:
+Each zergling operates in its own git worktree with its own branch:
 
 ```
 .zerg-worktrees/{feature}/worker-0/  →  branch: zerg/{feature}/worker-0
 .zerg-worktrees/{feature}/worker-1/  →  branch: zerg/{feature}/worker-1
 ```
 
-Workers commit independently. No filesystem conflicts.
+Zerglings commit independently. No filesystem conflicts.
 
 ---
 
@@ -91,12 +91,12 @@ Workers commit independently. No filesystem conflicts.
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                  Layer 3: Orchestration                         │
-│   Worker lifecycle • Level sync • Branch merging • Monitoring   │
+│   Zergling lifecycle • Level sync • Branch merging • Monitoring  │
 └─────────────────────────────────────────────────────────────────┘
           │                   │                   │
           ▼                   ▼                   ▼
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Worker 0   │     │  Worker 1   │     │  Worker N   │
+│ Zergling 0  │     │ Zergling 1  │     │ Zergling N  │
 │  (worktree) │     │  (worktree) │     │  (worktree) │
 └─────────────┘     └─────────────┘     └─────────────┘
           │                   │                   │
@@ -138,24 +138,24 @@ requirements.md → [Architecture Analysis] → task-graph.json + design.md
 [Orchestrator Start]
         │
         ▼
-[Load task-graph.json] → [Assign tasks to workers]
+[Load task-graph.json] → [Assign tasks to zerglings]
         │
         ▼
 [Create git worktrees]
         │
         ▼
-[Spawn N worker processes]
+[Spawn N zergling processes]
         │
         ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  FOR EACH LEVEL:                                                │
-│    1. Workers execute tasks in PARALLEL                         │
+│    1. Zerglings execute tasks in PARALLEL                       │
 │    2. Poll until all level tasks complete                       │
 │    3. MERGE PROTOCOL:                                           │
-│       • Merge all worker branches → staging                     │
+│       • Merge all zergling branches → staging                   │
 │       • Run quality gates                                       │
 │       • Promote staging → main                                  │
-│    4. Rebase worker branches                                    │
+│    4. Rebase zergling branches                                  │
 │    5. Advance to next level                                     │
 └─────────────────────────────────────────────────────────────────┘
         │
@@ -163,9 +163,9 @@ requirements.md → [Architecture Analysis] → task-graph.json + design.md
 [All tasks complete] ✓
 ```
 
-### Worker Protocol
+### Zergling Protocol
 
-Each worker:
+Each zergling:
 
 1. Loads `requirements.md`, `design.md`, `task-graph.json`
 2. Reads `worker-assignments.json` for its tasks
@@ -192,14 +192,14 @@ Each worker:
 | `orchestrator.py` | ~850 | Fleet management, level transitions, merge triggers |
 | `levels.py` | ~350 | Level-based execution control, dependency enforcement |
 | `state.py` | ~700 | Thread-safe file-based state persistence |
-| `worker_protocol.py` | ~600 | Worker-side execution, Claude Code invocation |
+| `worker_protocol.py` | ~600 | Zergling-side execution, Claude Code invocation |
 | `launcher.py` | ~450 | Abstract worker spawning (subprocess/container) |
 
 ### Task Management
 
 | Module | Lines | Purpose |
 |--------|-------|---------|
-| `assign.py` | ~200 | Task-to-worker assignment with load balancing |
+| `assign.py` | ~200 | Task-to-zergling assignment with load balancing |
 | `parser.py` | ~195 | Parse and validate task graphs |
 | `verify.py` | ~280 | Execute task verification commands |
 
@@ -208,7 +208,7 @@ Each worker:
 | Module | Lines | Purpose |
 |--------|-------|---------|
 | `git_ops.py` | ~380 | Low-level git operations |
-| `worktree.py` | ~300 | Git worktree management for worker isolation |
+| `worktree.py` | ~300 | Git worktree management for zergling isolation |
 | `merge.py` | ~280 | Branch merging after each level |
 
 ### Quality & Security
@@ -235,23 +235,23 @@ Each worker:
 | `/zerg:init` | `init.py` | Project initialization |
 | `/zerg:plan` | `plan.py` | Capture requirements |
 | `/zerg:design` | `design.py` | Generate architecture |
-| `/zerg:rush` | `rush.py` | Launch parallel workers |
+| `/zerg:rush` | `rush.py` | Launch parallel zerglings |
 | `/zerg:status` | `status.py` | Progress monitoring |
-| `/zerg:stop` | `stop.py` | Stop workers |
+| `/zerg:stop` | `stop.py` | Stop zerglings |
 | `/zerg:retry` | `retry.py` | Retry failed tasks |
-| `/zerg:logs` | `logs.py` | View worker logs |
+| `/zerg:logs` | `logs.py` | View zergling logs |
 | `/zerg:merge` | `merge_cmd.py` | Manual merge control |
 | `/zerg:cleanup` | `cleanup.py` | Remove artifacts |
 
 ---
 
-## Worker Execution Model
+## Zergling Execution Model
 
 ### Isolation Strategy
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     WORKER ISOLATION LAYERS                     │
+│                    ZERGLING ISOLATION LAYERS                    │
 ├─────────────────────────────────────────────────────────────────┤
 │ 1. Git Worktree: .zerg-worktrees/{feature}-worker-{id}/         │
 │    • Independent file system                                     │
@@ -259,7 +259,7 @@ Each worker:
 │    • Own branch: zerg/{feature}/worker-{id}                     │
 ├─────────────────────────────────────────────────────────────────┤
 │ 2. Process Isolation                                            │
-│    • Separate process per worker                                │
+│    • Separate process per zergling                              │
 │    • Independent memory space                                    │
 │    • Communication via state files                               │
 ├─────────────────────────────────────────────────────────────────┤
@@ -291,8 +291,8 @@ Auto-detection: Uses `ContainerLauncher` if devcontainer.json exists and Docker 
 
 - Monitor token usage via `ContextTracker`
 - Checkpoint at 70% context threshold
-- Worker exits gracefully (code 2)
-- Orchestrator restarts worker from checkpoint
+- Zergling exits gracefully (code 2)
+- Orchestrator restarts zergling from checkpoint
 
 ---
 
@@ -549,7 +549,7 @@ project/
 │   │   └── pre-commit       # Pre-commit hook script
 │   ├── state/               # Runtime state
 │   │   └── {feature}.json
-│   └── logs/                # Worker logs
+│   └── logs/                # Zergling logs
 │
 ├── .zerg-worktrees/         # Git worktrees (gitignored)
 │   └── {feature}-worker-N/
@@ -576,16 +576,16 @@ project/
 | Scenario | Response |
 |----------|----------|
 | Task verification fails | Retry 3x, then mark blocked |
-| Worker crashes | Orchestrator detects, respawns |
+| Zergling crashes | Orchestrator detects, respawns |
 | Merge conflict | Pause for human intervention |
-| All workers blocked | Pause ZERG, alert human |
+| All zerglings blocked | Pause ZERG, alert human |
 | Context limit (70%) | Commit WIP, exit for restart |
 
 ---
 
 ## Scaling Guidelines
 
-| Workers | Use Case |
+| Zerglings | Use Case |
 |---------|----------|
 | 1-2 | Small features, learning |
 | 3-5 | Medium features, balanced |
@@ -599,10 +599,10 @@ Diminishing returns beyond the widest level's parallelizable tasks.
 
 ZERG enables rapid parallel development through:
 
-1. **Spec-driven execution** — Workers read specifications, not conversation history
+1. **Spec-driven execution** — Zerglings read specifications, not conversation history
 2. **Exclusive file ownership** — No merge conflicts possible within levels
 3. **Level-based dependencies** — Proper sequencing guaranteed
-4. **Resilient workers** — Automatic retry and checkpoint recovery
+4. **Resilient zerglings** — Automatic retry and checkpoint recovery
 5. **Quality gates** — Automated verification at every stage
 6. **Security by design** — Strict validation and pre-commit hooks
 

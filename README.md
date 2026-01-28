@@ -6,7 +6,7 @@
 
 **Zero-Effort Rapid Growth** - Parallel Claude Code execution system for spec-driven development.
 
-> "Zerg rush your codebase." - Overwhelm features with coordinated worker instances.
+> "Zerg rush your codebase." - Overwhelm features with coordinated zergling instances.
 
 ---
 
@@ -18,7 +18,7 @@ Now imagine you could have five contractors working simultaneously, each handlin
 
 **That's what ZERG does for software development.**
 
-ZERG takes your feature requirements, breaks them into independent tasks, and assigns them to multiple Claude Code instances (we call them "workers") that execute in parallel. Each worker operates in complete isolation with its own git branch, so there's never any conflict. When a level of tasks completes, ZERG automatically merges everything and starts the next level.
+ZERG takes your feature requirements, breaks them into independent tasks, and assigns them to multiple Claude Code instances (we call them "zerglings") that execute in parallel. Each zergling operates in complete isolation with its own git branch, so there's never any conflict. When a level of tasks completes, ZERG automatically merges everything and starts the next level.
 
 The result? Features that might take hours of sequential AI-assisted development can be completed in a fraction of the time.
 
@@ -58,14 +58,14 @@ ZERG solves these problems through three key principles:
 
 **1. Specs as the Source of Truth**
 
-Instead of relying on conversation history, ZERG writes everything to spec files. Workers don't remember previous conversations—they read their task specifications fresh each time. This means:
-- No context limit issues (workers start fresh)
+Instead of relying on conversation history, ZERG writes everything to spec files. Zerglings don't remember previous conversations—they read their task specifications fresh each time. This means:
+- No context limit issues (zerglings start fresh)
 - Requirements are documented and versioned
-- Any worker can pick up any task
+- Any zergling can pick up any task
 
 **2. Exclusive File Ownership**
 
-Every file in your project is "owned" by exactly one task at a time. If Task A creates `models.py`, no other task at that level can touch it. This eliminates merge conflicts entirely—workers can work in parallel without stepping on each other's toes.
+Every file in your project is "owned" by exactly one task at a time. If Task A creates `models.py`, no other task at that level can touch it. This eliminates merge conflicts entirely—zerglings can work in parallel without stepping on each other's toes.
 
 **3. Level-Based Dependency Management**
 
@@ -88,19 +88,19 @@ Level 3: API Layer (depends on Level 2)
 └── Create cart endpoints (needs cart service)
 ```
 
-All Level 1 tasks run in parallel. When they're ALL done, ZERG merges their branches and starts Level 2. This ensures workers always have the dependencies they need.
+All Level 1 tasks run in parallel. When they're ALL done, ZERG merges their branches and starts Level 2. This ensures zerglings always have the dependencies they need.
 
 ### What Happens Under the Hood
 
 When you run `/zerg:rush`, here's what actually happens:
 
 1. **Orchestrator starts**: The main ZERG process loads your task graph
-2. **Worktrees created**: Git worktrees give each worker an isolated copy of the codebase
-3. **Workers spawned**: Each worker is a separate Claude Code process (or Docker container)
-4. **Tasks assigned**: Workers claim tasks from the current level
-5. **Parallel execution**: Workers implement their tasks simultaneously
+2. **Worktrees created**: Git worktrees give each zergling an isolated copy of the codebase
+3. **Zerglings spawned**: Each zergling is a separate Claude Code process (or Docker container)
+4. **Tasks assigned**: Zerglings claim tasks from the current level
+5. **Parallel execution**: Zerglings implement their tasks simultaneously
 6. **Verification**: Each task runs its verification command (tests, imports, etc.)
-7. **Sync point**: When all Level N tasks complete, branches merge
+7. **Sync point**: When all Level N tasks complete, zergling branches merge
 8. **Quality gates**: Linting, type checking, tests run on merged code
 9. **Level advance**: If gates pass, Level N+1 begins
 10. **Repeat**: Until all levels complete
@@ -118,9 +118,9 @@ Before installing ZERG, make sure you have these prerequisites. Here's why each 
 | Requirement | Version | Why It's Needed |
 |-------------|---------|-----------------|
 | **Python** | 3.11+ | ZERG is written in Python. Version 3.11+ provides the type hints and features we need |
-| **Git** | 2.x+ | ZERG uses git worktrees extensively—each worker gets its own isolated copy of your repo |
-| **Docker** | 20.x+ | *Optional*. Enables container mode where workers run in isolated Docker containers |
-| **Claude Code CLI** | Latest | Workers are Claude Code instances, so you need the CLI installed |
+| **Git** | 2.x+ | ZERG uses git worktrees extensively—each zergling gets its own isolated copy of your repo |
+| **Docker** | 20.x+ | *Optional*. Enables container mode where zerglings run in isolated Docker containers |
+| **Claude Code CLI** | Latest | Zerglings are Claude Code instances, so you need the CLI installed |
 | **ANTHROPIC_API_KEY** | - | Environment variable that authenticates with Anthropic's API |
 
 ### Installing ZERG
@@ -176,16 +176,16 @@ Available ZERG commands:
   /zerg:design       Generate architecture and task graph
   /zerg:git          Git operations and workflow
   /zerg:init         Initialize ZERG for a project
-  /zerg:logs         Stream worker logs
+  /zerg:logs         Stream zergling logs
   /zerg:merge        Merge level branches
   /zerg:plan         Capture feature requirements
   /zerg:refactor     Automated code improvement
   /zerg:retry        Retry failed tasks
   /zerg:review       Two-stage code review
-  /zerg:rush         Launch parallel workers
+  /zerg:rush         Launch parallel zerglings
   /zerg:security     Security rules management
   /zerg:status       Show execution status
-  /zerg:stop         Stop workers
+  /zerg:stop         Stop zerglings
   /zerg:test         Run tests with coverage
   /zerg:troubleshoot Debug with root cause analysis
 ```
@@ -259,19 +259,19 @@ Inside Claude Code, run:
    - Git repository with initial commit
 5. Then it runs Discovery Mode to add ZERG infrastructure:
    - `.zerg/config.yaml` - ZERG configuration
-   - `.devcontainer/` - Docker container definitions for workers
+   - `.devcontainer/` - Docker container definitions for zerglings
    - Security rules from TikiTribe/claude-secure-coding-rules
 
 **Why the `--security standard` flag?**
 
-This tells ZERG to configure workers with standard security isolation:
-- Network isolation (workers can't make arbitrary network calls)
-- Filesystem sandboxing (workers can only access the project directory)
+This tells ZERG to configure zerglings with standard security isolation:
+- Network isolation (zerglings can't make arbitrary network calls)
+- Filesystem sandboxing (zerglings can only access the project directory)
 - Secrets scanning (prevents accidental commit of API keys, etc.)
 
 ### Step 2: Plan Your Feature
 
-Now let's plan a feature. Planning is crucial because it creates the specification documents that workers will read.
+Now let's plan a feature. Planning is crucial because it creates the specification documents that zerglings will read.
 
 ```claude
 # Start planning with Socratic discovery mode
@@ -296,7 +296,7 @@ After the session, ZERG creates `.gsd/specs/user-auth/requirements.md` containin
 - Solution constraints
 - Acceptance criteria
 
-**Important:** Review this file! It's what workers will read. If something's wrong or missing, edit it now before proceeding.
+**Important:** Review this file! It's what zerglings will read. If something's wrong or missing, edit it now before proceeding.
 
 ### Step 3: Design the Architecture
 
@@ -346,7 +346,7 @@ Key things to understand:
 
 **Why file ownership matters:**
 
-If two workers both try to edit `models.py` at the same time, you'd get merge conflicts. By giving each task exclusive ownership of specific files, ZERG guarantees conflict-free merges.
+If two zerglings both try to edit `models.py` at the same time, you'd get merge conflicts. By giving each task exclusive ownership of specific files, ZERG guarantees conflict-free merges.
 
 ### Step 4: Launch the Rush
 
@@ -363,33 +363,33 @@ Time to build. This is where the magic happens:
 **What's happening:**
 
 1. ZERG creates 5 git worktrees (isolated copies of your repo)
-2. Spawns 5 Claude Code workers (one per worktree)
-3. Each worker claims a task from Level 1
-4. Workers implement their tasks in parallel
-5. As tasks complete, workers claim more tasks
+2. Spawns 5 Claude Code zerglings (one per worktree)
+3. Each zergling claims a task from Level 1
+4. Zerglings implement their tasks in parallel
+5. As tasks complete, zerglings claim more tasks
 6. When all Level 1 tasks complete:
-   - All worker branches merge into a staging branch
+   - All zergling branches merge into a staging branch
    - Quality gates run (lint, typecheck, test)
    - If gates pass, staging merges to main
-   - Workers rebase their worktrees
+   - Zerglings rebase their worktrees
    - Level 2 begins
 7. Repeat until all levels complete
 
-**Why 5 workers?**
+**Why 5 zerglings?**
 
 The `--workers 5` flag is a balance:
-- More workers = more parallelism = faster completion
+- More zerglings = more parallelism = faster completion
 - But also = more API calls = higher cost
 - And = more resource usage (memory, CPU)
 
-Start with 3-5 workers for most features. You can adjust based on:
+Start with 3-5 zerglings for most features. You can adjust based on:
 - How many tasks can actually run in parallel at each level
 - Your API rate limits
 - Your machine's resources
 
 ### Step 5: Monitor Progress
 
-While workers are running:
+While zerglings are running:
 
 ```claude
 # See current status (one-time snapshot)
@@ -398,15 +398,15 @@ While workers are running:
 # Watch continuously with live updates
 /zerg:status --watch
 
-# View worker logs in real-time
+# View zergling logs in real-time
 /zerg:logs --follow
 ```
 
 **What the status shows:**
 
 - Overall progress (tasks completed / total)
-- Current level and worker assignments
-- Each worker's current task and status
+- Current level and zergling assignments
+- Each zergling's current task and status
 - Recent completions and any failures
 
 ### Step 6: Handle Issues (If Any)
@@ -415,7 +415,7 @@ If a task fails:
 
 ```claude
 # See what went wrong
-/zerg:logs 1 --level error  # Logs from worker 1, errors only
+/zerg:logs 1 --level error  # Logs from zergling 1, errors only
 
 # Retry the failed task
 /zerg:retry AUTH-L2-003
@@ -427,10 +427,10 @@ If a task fails:
 **Why tasks fail:**
 
 - Verification command fails (tests don't pass, import errors)
-- Worker hits context limit (checkpoints and exits with code 2)
+- Zergling hits context limit (checkpoints and exits with code 2)
 - Actual implementation error
 
-For context limit issues, workers automatically checkpoint their progress. Just run `/zerg:rush --resume` to continue.
+For context limit issues, zerglings automatically checkpoint their progress. Just run `/zerg:rush --resume` to continue.
 
 ### Step 7: Cleanup
 
@@ -443,7 +443,7 @@ When everything's done:
 **What gets cleaned:**
 
 - Git worktrees (`.zerg/worktrees/`)
-- Worker branches (`zerg/user-auth/worker-*`)
+- Zergling branches (`zerg/user-auth/worker-*`)
 - State files (`.zerg/state/user-auth.json`)
 - Log files (`.zerg/logs/worker-*.log`)
 
@@ -484,12 +484,12 @@ For existing projects, ZERG analyzes what you have:
 1. **Detects stack**: Scans for package.json, pyproject.toml, Cargo.toml, etc.
 2. **Identifies frameworks**: Recognizes FastAPI, Express, React, etc.
 3. **Creates configuration**: Generates `.zerg/config.yaml` tailored to your stack
-4. **Sets up containers**: Creates `.devcontainer/` for isolated worker execution
+4. **Sets up containers**: Creates `.devcontainer/` for isolated zergling execution
 5. **Fetches security rules**: Downloads secure coding rules for your languages
 
 ### Phase 2: Planning (`/zerg:plan`)
 
-Planning captures requirements BEFORE any code is written. This is intentional—workers don't have access to your conversation history, only to spec files.
+Planning captures requirements BEFORE any code is written. This is intentional—zerglings don't have access to your conversation history, only to spec files.
 
 **Why Socratic Mode?**
 
@@ -597,22 +597,22 @@ The task graph is the heart of ZERG. Let's understand its structure:
 - **level**: Controls execution order
 - **dependencies**: Explicit task-to-task dependencies (within level constraints)
 - **files**: Enables conflict-free parallel execution
-- **acceptance_criteria**: Workers know what "done" looks like
+- **acceptance_criteria**: Zerglings know what "done" looks like
 - **verification**: Automated pass/fail determination
 
 ### Phase 4: Execution (`/zerg:rush`)
 
-The rush is where workers implement your feature in parallel.
+The rush is where zerglings implement your feature in parallel.
 
 **Execution Modes:**
 
-| Mode | How Workers Run | When to Use |
+| Mode | How Zerglings Run | When to Use |
 |------|-----------------|-------------|
 | `subprocess` | Local Python processes | Development, debugging, no Docker |
 | `container` | Isolated Docker containers | Production, security, reproducibility |
 | `auto` | Prefers container, falls back to subprocess | Default, recommended |
 
-**What Each Worker Does:**
+**What Each Zergling Does:**
 
 1. **Claims a task**: Requests next available task from orchestrator
 2. **Reads specs**: Loads task definition and feature specs
@@ -626,37 +626,37 @@ The rush is where workers implement your feature in parallel.
 
 When all tasks at Level N complete:
 
-1. **Collect**: Orchestrator gathers all worker branches
+1. **Collect**: Orchestrator gathers all zergling branches
 2. **Merge**: Sequential merge into staging branch
 3. **Gate**: Run quality checks (lint, typecheck, test)
 4. **Promote**: If gates pass, merge staging to main
-5. **Rebase**: Workers update their worktrees from main
+5. **Rebase**: Zerglings update their worktrees from main
 6. **Advance**: Begin Level N+1 tasks
 
 **Why Levels Matter:**
 
 Levels enforce dependency order. If Level 2 tasks need Level 1 code:
-- Workers at Level 2 can import from Level 1 files
+- Zerglings at Level 2 can import from Level 1 files
 - Those files exist because Level 1 completed first
 - No import errors, no undefined references
 
 ### Phase 5: Monitoring (`/zerg:status`, `/zerg:logs`)
 
-While workers execute, you need visibility into what's happening.
+While zerglings execute, you need visibility into what's happening.
 
 **Status Information:**
 
 ```
 Progress: ████████████░░░░░░░░ 60% (24/40 tasks)
 
-Level 3 of 5 │ Workers: 5 active
+Level 3 of 5 │ Zerglings: 5 active
 
-┌────────┬────────────────────────────────┬──────────┬─────────┐
-│ Worker │ Current Task                   │ Progress │ Status  │
-├────────┼────────────────────────────────┼──────────┼─────────┤
-│ W-0    │ AUTH-L3-001: Create login API  │ ████░░   │ RUNNING │
-│ W-1    │ AUTH-L3-002: Create user API   │ ██████   │ VERIFY  │
-│ W-2    │ (waiting for dependency)       │ ░░░░░░   │ IDLE    │
+┌──────────┬────────────────────────────────┬──────────┬─────────┐
+│ Zergling │ Current Task                   │ Progress │ Status  │
+├──────────┼────────────────────────────────┼──────────┼─────────┤
+│ Z-0      │ AUTH-L3-001: Create login API  │ ████░░   │ RUNNING │
+│ Z-1      │ AUTH-L3-002: Create user API   │ ██████   │ VERIFY  │
+│ Z-2      │ (waiting for dependency)       │ ░░░░░░   │ IDLE    │
 └────────┴────────────────────────────────┴──────────┴─────────┘
 ```
 
@@ -664,10 +664,10 @@ Level 3 of 5 │ Workers: 5 active
 
 | Status | What It Means | What's Happening |
 |--------|---------------|------------------|
-| RUNNING | Worker actively coding | Claude Code is implementing the task |
+| RUNNING | Zergling actively coding | Claude Code is implementing the task |
 | VERIFY | Running verification | Executing the verification command |
 | IDLE | Waiting for work | No available tasks at current level |
-| CHECKPOINT | Context limit hit | Worker saving progress, will resume |
+| CHECKPOINT | Context limit hit | Zergling saving progress, will resume |
 | CRASHED | Unexpected exit | Check logs for error details |
 
 **Log Levels:**
@@ -704,7 +704,7 @@ Now let's cover every command with all its options. For each command, I'll expla
 | Flag | Type | Default | What It Does | When to Use It |
 |------|------|---------|--------------|----------------|
 | `--detect/--no-detect` | flag | `--detect` | Auto-detect project type from existing files | Use `--no-detect` if detection is wrong |
-| `--workers`, `-w` | integer | `5` | Default worker count for this project | Fewer for small projects, more for large ones |
+| `--workers`, `-w` | integer | `5` | Default zergling count for this project | Fewer for small projects, more for large ones |
 | `--security` | choice | `standard` | Security isolation level | `strict` for production, `minimal` for debugging |
 | `--with-security-rules/--no-security-rules` | flag | `--with-security-rules` | Download secure coding rules | Disable if offline or rules aren't needed |
 | `--with-containers/--no-containers` | flag | `--no-containers` | Build devcontainer image immediately | Enable if you'll use container mode |
@@ -714,7 +714,7 @@ Now let's cover every command with all its options. For each command, I'll expla
 
 | Level | What's Protected | Use Case |
 |-------|------------------|----------|
-| `minimal` | Nothing—workers have full access | Quick prototyping, debugging issues |
+| `minimal` | Nothing—zerglings have full access | Quick prototyping, debugging issues |
 | `standard` | Network isolation, filesystem sandbox, secrets scanning | Normal development |
 | `strict` | All above + read-only root filesystem, no privilege escalation | Production, sensitive codebases |
 
@@ -744,11 +744,11 @@ project/
 ├── .zerg/
 │   ├── config.yaml          # ZERG settings
 │   ├── state/               # Execution state (populated during rush)
-│   ├── logs/                # Worker logs (populated during rush)
+│   ├── logs/                # Zergling logs (populated during rush)
 │   └── worktrees/           # Git worktrees (populated during rush)
 ├── .devcontainer/
 │   ├── devcontainer.json    # VS Code / container configuration
-│   └── Dockerfile           # Multi-language worker image
+│   └── Dockerfile           # Multi-language zergling image
 ├── .gsd/
 │   ├── PROJECT.md           # Project documentation
 │   └── INFRASTRUCTURE.md    # Technical requirements
@@ -760,7 +760,7 @@ project/
 
 #### /zerg:plan
 
-**Purpose:** Capture comprehensive feature requirements before any code is written. This creates the specification documents that workers will read.
+**Purpose:** Capture comprehensive feature requirements before any code is written. This creates the specification documents that zerglings will read.
 
 **When to use:** At the start of each new feature.
 
@@ -865,7 +865,7 @@ These questions plan the HOW:
 **Why Task Duration Matters:**
 
 Task size affects parallelization:
-- **Too large** (>45 min): Workers might hit context limits mid-task
+- **Too large** (>45 min): Zerglings might hit context limits mid-task
 - **Too small** (<5 min): Overhead of task setup exceeds value
 - **Just right** (10-30 min): Enough work to be meaningful, not so much it risks timeout
 
@@ -898,7 +898,7 @@ Task size affects parallelization:
 
 #### /zerg:rush
 
-**Purpose:** Launch parallel workers to implement your feature. This is where the actual building happens.
+**Purpose:** Launch parallel zerglings to implement your feature. This is where the actual building happens.
 
 **When to use:** After design is complete and you're ready to build.
 
@@ -910,11 +910,11 @@ Task size affects parallelization:
 
 | Flag | Type | Default | What It Does | When to Use It |
 |------|------|---------|--------------|----------------|
-| `--workers`, `-w` | integer | `5` | Number of workers to spawn | Balance speed vs. cost |
+| `--workers`, `-w` | integer | `5` | Number of zerglings to spawn | Balance speed vs. cost |
 | `--feature`, `-f` | string | auto-detect | Feature to build | When working on multiple features |
 | `--level`, `-l` | integer | `1` | Starting level | Skip completed levels on resume |
 | `--task-graph`, `-g` | path | auto-detect | Path to task-graph.json | Custom task graph location |
-| `--mode`, `-m` | choice | `auto` | Worker execution mode | Force subprocess or container |
+| `--mode`, `-m` | choice | `auto` | Zergling execution mode | Force subprocess or container |
 | `--dry-run` | flag | `false` | Preview execution plan | Always run first to verify |
 | `--resume` | flag | `false` | Continue from previous run | After interruption or failure |
 | `--timeout` | integer | `3600` | Max execution time (seconds) | Increase for large features |
@@ -924,13 +924,13 @@ Task size affects parallelization:
 
 | Mode | What Happens | Pros | Cons |
 |------|--------------|------|------|
-| `subprocess` | Workers run as local Python processes | Fast startup, easy debugging | Less isolation, shares resources |
-| `container` | Workers run in Docker containers | Full isolation, reproducible | Slower startup, needs Docker |
+| `subprocess` | Zerglings run as local Python processes | Fast startup, easy debugging | Less isolation, shares resources |
+| `container` | Zerglings run in Docker containers | Full isolation, reproducible | Slower startup, needs Docker |
 | `auto` | Uses container if available, else subprocess | Best of both | Behavior depends on setup |
 
-**Worker Count Guidelines:**
+**Zergling Count Guidelines:**
 
-| Workers | Best For | API Cost | Completion Speed |
+| Zerglings | Best For | API Cost | Completion Speed |
 |---------|----------|----------|------------------|
 | 1-2 | Learning, small features | Low | Slow |
 | 3-5 | Medium features, most use cases | Medium | Balanced |
@@ -942,7 +942,7 @@ Task size affects parallelization:
 # Preview execution plan first (always recommended)
 /zerg:rush --dry-run
 
-# Start with 5 workers (default)
+# Start with 5 zerglings (default)
 /zerg:rush
 
 # Resume after interruption
@@ -965,7 +965,7 @@ Task size affects parallelization:
 ├── state/{feature}.json           # Execution state
 ├── logs/
 │   ├── orchestrator.log           # Main process logs
-│   └── worker-{0-9}.log           # Individual worker logs
+│   └── worker-{0-9}.log           # Individual zergling logs
 └── worktrees/
     └── {feature}-worker-{0-9}/    # Git worktrees
 ```
@@ -978,7 +978,7 @@ Task size affects parallelization:
 
 #### /zerg:status
 
-**Purpose:** Display current execution status and progress. Your window into what workers are doing.
+**Purpose:** Display current execution status and progress. Your window into what zerglings are doing.
 
 ```claude
 /zerg:status [OPTIONS]
@@ -1000,26 +1000,26 @@ Task size affects parallelization:
 ═══════════════════════════════════════════════════════════════
 Progress: ████████████░░░░░░░░ 60% (24/40 tasks)
 
-Level 3 of 5 │ Workers: 5 active
+Level 3 of 5 │ Zerglings: 5 active
 
-┌────────┬────────────────────────────────┬──────────┬─────────┐
-│ Worker │ Current Task                   │ Progress │ Status  │
-├────────┼────────────────────────────────┼──────────┼─────────┤
-│ W-0    │ TASK-015: Implement login API  │ ████░░   │ RUNNING │
-│ W-1    │ TASK-016: Create user service  │ ██████   │ VERIFY  │
-│ W-2    │ TASK-017: Add auth middleware  │ ██░░░░   │ RUNNING │
-│ W-3    │ (waiting for dependency)       │ ░░░░░░   │ IDLE    │
-│ W-4    │ TASK-018: Database migrations  │ ████░░   │ RUNNING │
-└────────┴────────────────────────────────┴──────────┴─────────┘
+┌──────────┬────────────────────────────────┬──────────┬─────────┐
+│ Zergling │ Current Task                   │ Progress │ Status  │
+├──────────┼────────────────────────────────┼──────────┼─────────┤
+│ Z-0      │ TASK-015: Implement login API  │ ████░░   │ RUNNING │
+│ Z-1      │ TASK-016: Create user service  │ ██████   │ VERIFY  │
+│ Z-2      │ TASK-017: Add auth middleware  │ ██░░░░   │ RUNNING │
+│ Z-3      │ (waiting for dependency)       │ ░░░░░░   │ IDLE    │
+│ Z-4      │ TASK-018: Database migrations  │ ████░░   │ RUNNING │
+└──────────┴────────────────────────────────┴──────────┴─────────┘
 
-Recent: ✓ TASK-014 (W-2) │ ✓ TASK-013 (W-1) │ ✓ TASK-012 (W-0)
+Recent: ✓ TASK-014 (Z-2) │ ✓ TASK-013 (Z-1) │ ✓ TASK-012 (Z-0)
 ═══════════════════════════════════════════════════════════════
 ```
 
 **Status Icon Meanings:**
 
-| Status | What Worker Is Doing |
-|--------|----------------------|
+| Status | What Zergling Is Doing |
+|--------|------------------------|
 | RUNNING | Actively implementing task code |
 | VERIFY | Running verification command |
 | IDLE | No tasks available at current level |
@@ -1046,7 +1046,7 @@ Recent: ✓ TASK-014 (W-2) │ ✓ TASK-013 (W-1) │ ✓ TASK-012 (W-0)
 
 #### /zerg:logs
 
-**Purpose:** View worker and orchestrator logs. Essential for understanding what's happening and debugging issues.
+**Purpose:** View zergling and orchestrator logs. Essential for understanding what's happening and debugging issues.
 
 ```claude
 /zerg:logs [WORKER_ID] [OPTIONS]
@@ -1056,7 +1056,7 @@ Recent: ✓ TASK-014 (W-2) │ ✓ TASK-013 (W-1) │ ✓ TASK-012 (W-0)
 
 | Argument | Required | What It Is |
 |----------|----------|------------|
-| `WORKER_ID` | No | Specific worker (0-9) to show logs for. Omit for all workers |
+| `WORKER_ID` | No | Specific zergling (0-9) to show logs for. Omit for all zerglings |
 
 **Options Explained:**
 
@@ -1080,13 +1080,13 @@ Recent: ✓ TASK-014 (W-2) │ ✓ TASK-013 (W-1) │ ✓ TASK-012 (W-0)
 **Examples:**
 
 ```claude
-# View recent logs from all workers
+# View recent logs from all zerglings
 /zerg:logs
 
 # Stream logs in real-time
 /zerg:logs --follow
 
-# Worker 1's errors only
+# Zergling 1's errors only
 /zerg:logs 1 --level error
 
 # Last 200 lines with debug detail
@@ -1097,7 +1097,7 @@ Recent: ✓ TASK-014 (W-2) │ ✓ TASK-013 (W-1) │ ✓ TASK-012 (W-0)
 
 #### /zerg:stop
 
-**Purpose:** Stop worker execution, either gracefully (with checkpoint) or forcefully.
+**Purpose:** Stop zergling execution, either gracefully (with checkpoint) or forcefully.
 
 ```claude
 /zerg:stop [OPTIONS]
@@ -1108,9 +1108,9 @@ Recent: ✓ TASK-014 (W-2) │ ✓ TASK-013 (W-1) │ ✓ TASK-012 (W-0)
 | Flag | Type | Default | What It Does | When to Use It |
 |------|------|---------|--------------|----------------|
 | `--feature`, `-f` | string | auto-detect | Feature to stop | Multiple features |
-| `--worker`, `-w` | integer | - | Stop only this worker | One worker having issues |
+| `--worker`, `-w` | integer | - | Stop only this zergling | One zergling having issues |
 | `--force` | flag | `false` | Immediate termination | Graceful stop isn't working |
-| `--timeout` | integer | `30` | Graceful shutdown timeout | Workers taking too long to stop |
+| `--timeout` | integer | `30` | Graceful shutdown timeout | Zerglings taking too long to stop |
 
 **Graceful vs. Force:**
 
@@ -1124,10 +1124,10 @@ Recent: ✓ TASK-014 (W-2) │ ✓ TASK-013 (W-1) │ ✓ TASK-012 (W-0)
 **Examples:**
 
 ```claude
-# Graceful stop all workers
+# Graceful stop all zerglings
 /zerg:stop
 
-# Stop one problematic worker
+# Stop one problematic zergling
 /zerg:stop --worker 3
 
 # Force stop when graceful hangs
@@ -1165,7 +1165,7 @@ Recent: ✓ TASK-014 (W-2) │ ✓ TASK-013 (W-1) │ ✓ TASK-012 (W-0)
 | `--timeout`, `-t` | integer | - | Override task timeout | Task needs more time |
 | `--reset` | flag | `false` | Reset retry counters | Fresh start |
 | `--dry-run` | flag | `false` | Show what would retry | Preview before action |
-| `--worker`, `-w` | integer | - | Assign to specific worker | Route to idle worker |
+| `--worker`, `-w` | integer | - | Assign to specific zergling | Route to idle zergling |
 
 **Why Retry Limits Exist:**
 
@@ -1199,7 +1199,7 @@ Use `--force` or `--reset` sparingly, preferably after understanding why the tas
 
 #### /zerg:merge
 
-**Purpose:** Merge worker branches after level completion. Usually automatic, but you can trigger manually.
+**Purpose:** Merge zergling branches after level completion. Usually automatic, but you can trigger manually.
 
 ```claude
 /zerg:merge [OPTIONS]
@@ -1215,15 +1215,15 @@ Use `--force` or `--reset` sparingly, preferably after understanding why the tas
 | `--abort` | flag | `false` | Abort in-progress merge | Merge went wrong |
 | `--dry-run` | flag | `false` | Show merge plan only | Preview before merge |
 | `--skip-gates` | flag | `false` | Skip quality checks | Debugging only |
-| `--no-rebase` | flag | `false` | Don't rebase worker branches | Preserve branch history |
+| `--no-rebase` | flag | `false` | Don't rebase zergling branches | Preserve branch history |
 
 **Merge Process Explained:**
 
-1. **Collect**: Identify all worker branches for the level
+1. **Collect**: Identify all zergling branches for the level
 2. **Merge to staging**: Sequential merge into `zerg/{feature}/staging`
 3. **Quality gates**: Run lint, typecheck, tests on staging
 4. **Promote**: If gates pass, merge staging to main
-5. **Rebase**: Update worker branches from new main
+5. **Rebase**: Update zergling branches from new main
 
 **Why Quality Gates?**
 
@@ -1319,7 +1319,7 @@ Gates catch these before they hit main.
 | `--generate`, `-g` | flag | `false` | Generate test stubs for uncovered code | Bootstrapping tests |
 | `--coverage`, `-c` | flag | `false` | Report test coverage | Quality assessment |
 | `--watch`, `-w` | flag | `false` | Rerun on file changes | TDD workflow |
-| `--parallel`, `-p` | integer | - | Parallel test workers | Speed up large suites |
+| `--parallel`, `-p` | integer | - | Parallel test processes | Speed up large suites |
 | `--framework` | choice | auto-detect | Test framework | Override detection |
 | `--path` | path | `.` | Test file path | Run subset of tests |
 | `--dry-run` | flag | `false` | Show command without running | Preview |
@@ -1660,25 +1660,25 @@ Gates catch these before they hit main.
 
 #### /zerg:worker
 
-**Purpose:** Worker execution protocol. This is what runs INSIDE workers—you typically don't call it directly.
+**Purpose:** Zergling execution protocol. This is what runs INSIDE zerglings—you typically don't call it directly.
 
-**Environment Variables Workers Use:**
+**Environment Variables Zerglings Use:**
 
 | Variable | Purpose |
 |----------|---------|
-| `ZERG_WORKER_ID` | Worker identifier (0-9) |
+| `ZERG_WORKER_ID` | Zergling identifier (0-9) |
 | `ZERG_FEATURE` | Feature being built |
-| `ZERG_BRANCH` | Worker's git branch |
+| `ZERG_BRANCH` | Zergling's git branch |
 | `ZERG_SPEC_DIR` | Path to spec files |
 
 **Exit Codes:**
 
 | Code | Meaning | What Happens Next |
 |------|---------|-------------------|
-| 0 | All tasks completed | Worker done |
+| 0 | All tasks completed | Zergling done |
 | 1 | Unrecoverable error | Task marked failed |
 | 2 | Context limit reached | Checkpoint saved, can resume |
-| 3 | All remaining tasks blocked | Worker waits |
+| 3 | All remaining tasks blocked | Zergling waits |
 | 130 | Interrupted (SIGINT) | Graceful stop |
 
 ---
@@ -1693,7 +1693,7 @@ ZERG's behavior is controlled by `.zerg/config.yaml`:
 version: "1.0"
 project_type: python  # Detected or specified
 
-# Worker settings
+# Zergling settings
 workers:
   default_count: 5      # Default for /zerg:rush
   max_count: 10         # Never spawn more than this
@@ -1718,27 +1718,27 @@ quality_gates:
     command: "pytest"
     required: true
 
-# MCP servers for workers
+# MCP servers for zerglings
 mcp_servers:
   - name: filesystem
     command: npx
     args: ["-y", "@anthropic/mcp-filesystem"]
 ```
 
-### Tuning Worker Count
+### Tuning Zergling Count
 
-| Scenario | Recommended Workers | Why |
-|----------|---------------------|-----|
+| Scenario | Recommended Zerglings | Why |
+|----------|------------------------|-----|
 | Learning ZERG | 1-2 | See what's happening clearly |
-| Small feature (<10 tasks) | 2-3 | Avoid idle workers |
+| Small feature (<10 tasks) | 2-3 | Avoid idle zerglings |
 | Medium feature (10-30 tasks) | 3-5 | Good balance |
 | Large feature (30+ tasks) | 5-8 | Maximize parallelism |
 | Very large feature | 8-10 | Maximum throughput |
 
 **Considerations:**
-- More workers = higher API cost (parallel calls)
-- More workers = more memory usage (worktrees)
-- Workers beyond max parallelization at any level are idle
+- More zerglings = higher API cost (parallel calls)
+- More zerglings = more memory usage (worktrees)
+- Zerglings beyond max parallelization at any level are idle
 
 ### Environment Variables
 
@@ -1834,16 +1834,16 @@ project/
 │   │   └── {feature}.json          # Execution state
 │   ├── logs/
 │   │   ├── orchestrator.log        # Main process logs
-│   │   └── worker-{id}.log         # Per-worker logs
+│   │   └── worker-{id}.log         # Per-zergling logs
 │   ├── worktrees/
-│   │   └── {feature}-worker-N/     # Isolated git worktrees
-│   └── worker_entry.sh             # Worker startup script
+│   │   └── {feature}-worker-N/     # Isolated zergling git worktrees
+│   └── worker_entry.sh             # Zergling startup script
 │
 ├── .devcontainer/                  # Container configuration
 │   ├── devcontainer.json           # VS Code devcontainer
-│   ├── Dockerfile                  # Worker image definition
+│   ├── Dockerfile                  # Zergling image definition
 │   ├── post-create.sh              # Container setup script
-│   └── post-start.sh               # Worker initialization
+│   └── post-start.sh               # Zergling initialization
 │
 ├── .gsd/                           # GSD specification (committed)
 │   ├── PROJECT.md                  # Project documentation
@@ -1874,19 +1874,19 @@ project/
 ┌─────────────────────────────────────────────────────────────────┐
 │                    ORCHESTRATOR STARTS                           │
 │  • Loads task-graph.json                                        │
-│  • Creates git worktrees for each worker                        │
-│  • Spawns worker processes/containers                           │
+│  • Creates git worktrees for each zergling                      │
+│  • Spawns zergling processes/containers                         │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    LEVEL 1 BEGINS                                │
 │                                                                  │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐            │
-│  │Worker 0 │  │Worker 1 │  │Worker 2 │  │Worker 3 │  ...       │
-│  │Task 001 │  │Task 002 │  │Task 003 │  │  IDLE   │            │
-│  │models.py│  │config.py│  │types.py │  │         │            │
-│  └─────────┘  └─────────┘  └─────────┘  └─────────┘            │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
+│  │Zergling 0│  │Zergling 1│  │Zergling 2│  │Zergling 3│  ...    │
+│  │Task 001  │  │Task 002  │  │Task 003  │  │  IDLE    │          │
+│  │models.py │  │config.py │  │types.py  │  │          │          │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘          │
 │       │            │            │                               │
 │       ▼            ▼            ▼                               │
 │  [commits]    [commits]    [commits]                           │
@@ -1901,16 +1901,16 @@ project/
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    SYNC POINT                                    │
-│  • Merge all worker branches → staging                          │
+│  • Merge all zergling branches → staging                        │
 │  • Run quality gates (lint, typecheck, test)                    │
 │  • If pass: merge staging → main                                │
-│  • Rebase all worker branches from main                         │
+│  • Rebase all zergling branches from main                       │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    LEVEL 2 BEGINS                                │
-│  (Workers can now import from Level 1 code)                     │
+│  (Zerglings can now import from Level 1 code)                   │
 │  ... repeat until all levels complete ...                       │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -1919,9 +1919,9 @@ project/
 
 ## When Things Go Wrong
 
-### Workers Not Starting
+### Zerglings Not Starting
 
-**Symptoms:** `/zerg:rush` hangs or workers fail to spawn
+**Symptoms:** `/zerg:rush` hangs or zerglings fail to spawn
 
 **Diagnosis:**
 ```bash
@@ -1931,7 +1931,7 @@ docker info
 # Check API key is set
 echo $ANTHROPIC_API_KEY
 
-# Check port availability (workers use 49152+)
+# Check port availability (zerglings use 49152+)
 netstat -an | grep 49152
 ```
 
@@ -1961,7 +1961,7 @@ From your terminal, inspect the verification command:
 cat .gsd/specs/{feature}/task-graph.json | jq '.tasks[] | select(.id == "TASK-001") | .verification'
 ```
 
-Inside Claude Code, check worker logs:
+Inside Claude Code, check zergling logs:
 
 ```claude
 /zerg:logs 1 --level error
@@ -2018,16 +2018,16 @@ Inside Claude Code:
 
 ### Context Limit Reached (Exit Code 2)
 
-**Symptoms:** Worker exits with "context limit reached", status shows CHECKPOINT
+**Symptoms:** Zergling exits with "context limit reached", status shows CHECKPOINT
 
-**This is normal behavior**, not an error. Workers checkpoint when they're running low on context.
+**This is normal behavior**, not an error. Zerglings checkpoint when they're running low on context.
 
 **Solution:**
 
 Inside Claude Code:
 
 ```claude
-# Simply resume -- workers will pick up from their checkpoints
+# Simply resume -- zerglings will pick up from their checkpoints
 /zerg:rush --resume
 ```
 

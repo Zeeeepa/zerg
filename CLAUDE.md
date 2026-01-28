@@ -1,6 +1,6 @@
 # ZERG
 
-Parallel Claude Code execution system. Overwhelm features with coordinated worker instances.
+Parallel Claude Code execution system. Overwhelm features with coordinated zergling instances.
 
 ## Quick Start
 
@@ -23,18 +23,18 @@ These are Claude Code slash commands. Use them inside a Claude Code session:
 
 ## Key Concepts
 
-**Levels**: Tasks grouped by dependencies. All workers finish Level 1 before any start Level 2.
+**Levels**: Tasks grouped by dependencies. All zerglings finish Level 1 before any start Level 2.
 
 **File Ownership**: Each task owns specific files. No conflicts possible.
 
-**Spec as Memory**: Workers read spec files, not conversation history. Stateless and restartable.
+**Spec as Memory**: Zerglings read spec files, not conversation history. Stateless and restartable.
 
 **Verification**: Every task has an automated verification command. Pass or fail, no subjectivity.
 
 ## Configuration
 
 Edit `.zerg/config.yaml` for:
-- Worker limits
+- Zergling limits
 - Timeouts
 - Quality gate commands
 - MCP servers
@@ -42,7 +42,7 @@ Edit `.zerg/config.yaml` for:
 
 ## Troubleshooting
 
-Workers not starting? Check Docker, ANTHROPIC_API_KEY, and port availability.
+Zerglings not starting? Check Docker, ANTHROPIC_API_KEY, and port availability.
 
 Tasks failing? Check verification commands in task-graph.json.
 
