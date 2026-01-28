@@ -76,4 +76,5 @@ asyncio_mode = "auto"
 filterwarnings = [
     "ignore:cannot collect test class.*because it has a __init__ constructor:pytest.PytestCollectionWarning",
     "ignore:cannot collect 'test_cmd' because it is not a function:pytest.PytestCollectionWarning",
+    "ignore:.*found in sys.modules after import of package.*:RuntimeWarning",
 ]
