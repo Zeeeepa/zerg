@@ -51,7 +51,7 @@ where = ["."]
 include = ["zerg*"]
 
 [tool.setuptools.package-data]
-zerg = ["py.typed", "schemas/*.json"]
+zerg = ["py.typed", "schemas/*.json", "data/commands/*.md"]
 
 [tool.mypy]
 python_version = "3.12"

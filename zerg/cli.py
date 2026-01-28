@@ -11,6 +11,7 @@ from zerg.commands import (
     design,
     git_cmd,
     init,
+    install_commands,
     logs,
     merge_cmd,
     plan,
@@ -23,6 +24,7 @@ from zerg.commands import (
     stop,
     test_cmd,
     troubleshoot,
+    uninstall_commands,
 )
 
 console = Console()
@@ -62,6 +64,8 @@ cli.add_command(status)
 cli.add_command(stop)
 cli.add_command(test_cmd, name="test")
 cli.add_command(troubleshoot)
+cli.add_command(install_commands)
+cli.add_command(uninstall_commands)
 
 
 if __name__ == "__main__":

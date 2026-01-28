@@ -6,6 +6,7 @@ from zerg.commands.cleanup import cleanup
 from zerg.commands.design import design
 from zerg.commands.git_cmd import git_cmd
 from zerg.commands.init import init
+from zerg.commands.install_commands import install_commands, uninstall_commands
 from zerg.commands.logs import logs
 from zerg.commands.merge_cmd import merge_cmd
 from zerg.commands.plan import plan
@@ -38,4 +39,6 @@ __all__ = [
     "stop",
     "test_cmd",
     "troubleshoot",
+    "install_commands",
+    "uninstall_commands",
 ]

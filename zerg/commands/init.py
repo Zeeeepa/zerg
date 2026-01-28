@@ -213,6 +213,11 @@ def init(
             container_built=container_built,
         )
 
+        # Auto-install slash commands globally if not present
+        from zerg.commands.install_commands import auto_install_commands
+
+        auto_install_commands()
+
         console.print("\n[green]✓[/green] ZERG initialized successfully!")
         console.print("\nNext steps:")
         console.print("  1. Run [cyan]zerg plan <feature>[/cyan] to capture requirements")
