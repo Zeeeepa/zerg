@@ -20,6 +20,8 @@ from zerg.dryrun import (
     LevelTimeline,
     TimelineEstimate,
 )
+from zerg.preflight import PreflightReport, CheckResult
+from zerg.risk_scoring import RiskReport
 from zerg.types import GateRunResult
 
 
@@ -484,3 +486,115 @@ class TestRender:
         assert "Worker Load Balance" in captured.out
         assert "Timeline Estimate" in captured.out
         assert "ready to rush" in captured.out.lower()
+
+    def test_render_includes_preflight(
+        self, valid_task_graph: dict[str, Any], default_config: ZergConfig,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Output contains Pre-flight panel."""
+        sim = DryRunSimulator(
+            task_data=valid_task_graph, workers=2, feature="pf-test", config=default_config,
+        )
+        sim.run()
+
+        captured = capsys.readouterr()
+        assert "Pre-flight" in captured.out
+
+    def test_render_includes_risk(
+        self, valid_task_graph: dict[str, Any], default_config: ZergConfig,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Output contains Risk Assessment panel."""
+        sim = DryRunSimulator(
+            task_data=valid_task_graph, workers=2, feature="risk-test", config=default_config,
+        )
+        sim.run()
+
+        captured = capsys.readouterr()
+        assert "Risk Assessment" in captured.out
+
+    def test_render_includes_gantt(
+        self, valid_task_graph: dict[str, Any], default_config: ZergConfig,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Output contains Gantt Timeline panel."""
+        sim = DryRunSimulator(
+            task_data=valid_task_graph, workers=2, feature="gantt-test", config=default_config,
+        )
+        sim.run()
+
+        captured = capsys.readouterr()
+        assert "Gantt Timeline" in captured.out
+
+    def test_render_includes_snapshots(
+        self, valid_task_graph: dict[str, Any], default_config: ZergConfig,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Output contains Projected Snapshots panel."""
+        sim = DryRunSimulator(
+            task_data=valid_task_graph, workers=2, feature="snap-test", config=default_config,
+        )
+        sim.run()
+
+        captured = capsys.readouterr()
+        assert "Projected Snapshots" in captured.out
+
+
+# =============================================================================
+# Preflight integration
+# =============================================================================
+
+
+class TestPreflightIntegration:
+    """Tests for preflight integration in DryRunSimulator."""
+
+    def test_preflight_report_included(
+        self, valid_task_graph: dict[str, Any], default_config: ZergConfig,
+    ) -> None:
+        """Simulator populates preflight report."""
+        sim = DryRunSimulator(
+            task_data=valid_task_graph, workers=2, feature="pf-test", config=default_config,
+        )
+        report = sim.run()
+        assert report.preflight is not None
+        assert isinstance(report.preflight, PreflightReport)
+
+    def test_preflight_failure_causes_error(self) -> None:
+        """Report has_errors when preflight fails."""
+        pf = PreflightReport(checks=[
+            CheckResult(name="test", passed=False, message="fail", severity="error"),
+        ])
+        report = DryRunReport(
+            feature="x", workers=1, mode="auto",
+            preflight=pf,
+        )
+        assert report.has_errors
+
+
+# =============================================================================
+# Risk integration
+# =============================================================================
+
+
+class TestRiskIntegration:
+    """Tests for risk scoring integration in DryRunSimulator."""
+
+    def test_risk_report_included(
+        self, valid_task_graph: dict[str, Any], default_config: ZergConfig,
+    ) -> None:
+        """Simulator populates risk report."""
+        sim = DryRunSimulator(
+            task_data=valid_task_graph, workers=2, feature="risk-test", config=default_config,
+        )
+        report = sim.run()
+        assert report.risk is not None
+        assert isinstance(report.risk, RiskReport)
+
+    def test_high_risk_produces_warning(self) -> None:
+        """Report has_warnings when risk grade is C or D."""
+        risk = RiskReport(grade="C", overall_score=0.7)
+        report = DryRunReport(
+            feature="x", workers=1, mode="auto",
+            risk=risk,
+        )
+        assert report.has_warnings

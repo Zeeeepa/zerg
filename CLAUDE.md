@@ -121,6 +121,19 @@ Watch for these patterns — they are symptoms of drift:
 
 **If you are modifying any ZERG command file and it lacks Task tool calls, add them.** Do not create or modify ZERG commands without Task ecosystem integration.
 
+## Container Execution (Non-Negotiable)
+
+When a user specifies `--mode container` or says "containerize", workers MUST run in Docker containers. Never substitute with manual edits or subprocess mode. Container mode is a first-class execution path, not a fallback.
+
+### Authentication Methods
+
+Container workers authenticate via two methods:
+
+- **OAuth**: Mount `~/.claude` into container (Claude Pro/Team accounts)
+- **API Key**: Pass `ANTHROPIC_API_KEY` env var into container
+
+Both are implemented in `zerg/launcher.py:684-819`. This is settled infrastructure — do not reimplement or bypass.
+
 ## Configuration
 
 Edit `.zerg/config.yaml` for:

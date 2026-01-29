@@ -147,6 +147,8 @@ class TestOrchestratorWorkerCrashRecovery:
             state_mock = MagicMock()
             state_mock.load.return_value = {}
             state_mock.get_task_retry_count.return_value = 0
+            state_mock.increment_task_retry.return_value = 1
+            state_mock.get_tasks_ready_for_retry.return_value = []
             state_cls.return_value = state_mock
 
             levels_mock = MagicMock()
@@ -192,8 +194,10 @@ class TestOrchestratorWorkerCrashRecovery:
             # Poll should detect crash
             orch._poll_workers()
 
-            # Verify task failure handling was called
-            state_mock.increment_task_retry.assert_called_with("TASK-001")
+            # Verify task failure handling was called (now with next_retry_at kwarg)
+            state_mock.increment_task_retry.assert_called_once()
+            call_args = state_mock.increment_task_retry.call_args
+            assert call_args[0][0] == "TASK-001"
 
     def test_worker_crash_respawns_worker(
         self, test_fixture: OrchestratorTestFixture

@@ -33,6 +33,8 @@ logger = get_logger("rush")
     help="Worker execution mode (default: auto-detect)",
 )
 @click.option("--check-gates", is_flag=True, help="Pre-run quality gates during dry-run")
+@click.option("--what-if", is_flag=True, help="Compare different worker counts and modes")
+@click.option("--risk", is_flag=True, help="Show risk assessment for the task graph")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.pass_context
 def rush(
@@ -46,6 +48,8 @@ def rush(
     task_graph: str | None,
     mode: str,
     check_gates: bool,
+    what_if: bool,
+    risk: bool,
     verbose: bool,
 ) -> None:
     """Launch parallel worker execution.
@@ -62,7 +66,9 @@ def rush(
 
         zerg rush --mode container --workers 5
 
-        zerg rush --mode subprocess --workers 3
+        zerg rush --dry-run --what-if
+
+        zerg rush --dry-run --risk
     """
     # Setup logging
     if verbose:
@@ -97,6 +103,28 @@ def rush(
         # Show summary
         show_summary(task_data, workers, mode)
 
+        # Pre-flight checks (always run before rush or dry-run)
+        if not _run_preflight(config, mode, workers):
+            raise SystemExit(1)
+
+        # What-if analysis
+        if what_if:
+            from zerg.whatif import WhatIfEngine
+
+            engine = WhatIfEngine(task_data, feature)
+            report = engine.compare_all()
+            engine.render(report)
+            if not dry_run:
+                console.print()  # spacer before continuing
+
+        # Risk assessment (standalone)
+        if risk and not dry_run:
+            from zerg.risk_scoring import RiskScorer
+
+            scorer = RiskScorer(task_data, workers)
+            risk_report = scorer.score()
+            _render_standalone_risk(risk_report)
+
         if dry_run:
             from zerg.dryrun import DryRunSimulator
 
@@ -110,6 +138,10 @@ def rush(
             )
             report = simulator.run()
             raise SystemExit(1 if report.has_errors else 0)
+
+        # If only what-if or risk was requested (without dry-run), exit
+        if what_if or risk:
+            return
 
         # Confirm before starting
         if not resume and not click.confirm("\nStart execution?", default=True):
@@ -163,6 +195,67 @@ def rush(
         if verbose:
             console.print_exception()
         raise SystemExit(1) from None
+
+
+def _run_preflight(config: ZergConfig, mode: str, workers: int) -> bool:
+    """Run pre-flight checks before rush. Returns True if passed."""
+    from zerg.preflight import PreflightChecker
+
+    with console.status("Running pre-flight checks..."):
+        checker = PreflightChecker(
+            mode=mode,
+            worker_count=workers,
+            port_range_start=config.ports.range_start,
+            port_range_end=config.ports.range_end,
+        )
+        report = checker.run_all()
+
+    if report.errors:
+        console.print("[bold red]Pre-flight failed:[/bold red]")
+        for check in report.errors:
+            console.print(f"  [red]✗[/red] {check.name}: {check.message}")
+        return False
+
+    if report.warnings:
+        for check in report.warnings:
+            console.print(f"  [yellow]⚠[/yellow] {check.name}: {check.message}")
+
+    return True
+
+
+def _render_standalone_risk(risk_report: "RiskReport") -> None:
+    """Render risk assessment as standalone output."""
+    from rich.panel import Panel
+    from rich.text import Text
+
+    from zerg.risk_scoring import RiskReport
+
+    lines: list[Text] = []
+    grade_colors = {"A": "green", "B": "yellow", "C": "red", "D": "bold red"}
+
+    grade_line = Text()
+    grade_line.append("Grade: ", style="dim")
+    grade_line.append(
+        risk_report.grade,
+        style=grade_colors.get(risk_report.grade, "white"),
+    )
+    grade_line.append(f" (score: {risk_report.overall_score:.2f})")
+    lines.append(grade_line)
+
+    if risk_report.critical_path:
+        cp_line = Text()
+        cp_line.append("Critical path: ", style="dim")
+        cp_line.append(" → ".join(risk_report.critical_path))
+        lines.append(cp_line)
+
+    for factor in risk_report.risk_factors:
+        fl = Text()
+        fl.append("⚠ ", style="yellow")
+        fl.append(factor)
+        lines.append(fl)
+
+    content = Text("\n").join(lines)
+    console.print(Panel(content, title="[bold]Risk Assessment[/bold]", title_align="left"))
 
 
 def find_task_graph(feature: str | None) -> Path | None:

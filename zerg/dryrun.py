@@ -1,7 +1,8 @@
 """Dry-run simulation for ZERG rush command.
 
 Validates everything a real rush would validate, shows timeline estimates,
-worker load balance, and optionally pre-runs quality gates.
+worker load balance, risk assessment, pre-flight checks, and optionally
+pre-runs quality gates.
 """
 
 from __future__ import annotations
@@ -20,6 +21,9 @@ from rich.text import Text
 from zerg.assign import WorkerAssignment
 from zerg.config import ZergConfig
 from zerg.gates import GateRunner
+from zerg.preflight import PreflightChecker, PreflightReport
+from zerg.render_utils import render_gantt_chart, render_progress_bar
+from zerg.risk_scoring import RiskReport, RiskScorer
 from zerg.validation import (
     validate_dependencies,
     validate_file_ownership,
@@ -81,6 +85,8 @@ class DryRunReport:
     gate_results: list[GateCheckResult] = field(default_factory=list)
     task_data: dict = field(default_factory=dict)
     worker_loads: dict[int, dict] = field(default_factory=dict)
+    preflight: PreflightReport | None = None
+    risk: RiskReport | None = None
 
     @property
     def has_errors(self) -> bool:
@@ -90,6 +96,7 @@ class DryRunReport:
             or self.dependency_issues
             or self.resource_issues
             or any(g.status == "failed" and g.required for g in self.gate_results)
+            or (self.preflight and not self.preflight.passed)
         )
 
     @property
@@ -97,6 +104,8 @@ class DryRunReport:
         return bool(
             self.missing_verifications
             or any(g.status == "failed" and not g.required for g in self.gate_results)
+            or (self.preflight and self.preflight.warnings)
+            or (self.risk and self.risk.grade in ("C", "D"))
         )
 
 
@@ -135,11 +144,17 @@ class DryRunSimulator:
             task_data=self.task_data,
         )
 
+        # Pre-flight checks
+        report.preflight = self._run_preflight()
+
         report.level_issues = self._validate_level_structure()
         report.file_ownership_issues = self._validate_file_ownership()
         report.dependency_issues = self._validate_dependencies()
         report.missing_verifications = self._check_missing_verifications()
         report.resource_issues = self._check_resources()
+
+        # Risk scoring
+        report.risk = self._compute_risk()
 
         # Worker assignment + timeline
         assigner = WorkerAssignment(self.workers)
@@ -153,6 +168,25 @@ class DryRunSimulator:
 
         self._render_report(report)
         return report
+
+    # -- pre-flight ----------------------------------------------------------
+
+    def _run_preflight(self) -> PreflightReport:
+        """Run pre-flight environment checks."""
+        checker = PreflightChecker(
+            mode=self.mode,
+            worker_count=self.workers,
+            port_range_start=self.config.ports.range_start,
+            port_range_end=self.config.ports.range_end,
+        )
+        return checker.run_all()
+
+    # -- risk scoring --------------------------------------------------------
+
+    def _compute_risk(self) -> RiskReport:
+        """Compute risk assessment for the task graph."""
+        scorer = RiskScorer(self.task_data, self.workers)
+        return scorer.score()
 
     # -- validation methods --------------------------------------------------
 
@@ -303,23 +337,56 @@ class DryRunSimulator:
         """Render the full dry-run report using Rich."""
         console.print()
 
-        # 1. Validation panel
+        # 1. Pre-flight panel
+        self._render_preflight(report)
+
+        # 2. Validation panel
         self._render_validation(report)
 
-        # 2. Per-level task tables
+        # 3. Risk assessment
+        self._render_risk(report)
+
+        # 4. Per-level task tables
         self._render_levels(report)
 
-        # 3. Worker load balance
+        # 5. Worker load balance
         self._render_worker_loads(report)
 
-        # 4. Timeline estimate
+        # 6. Gantt-style timeline
+        self._render_gantt(report)
+
+        # 7. Timeline estimate
         self._render_timeline(report)
 
-        # 5. Quality gates
+        # 8. Projected status snapshots
+        self._render_snapshots(report)
+
+        # 9. Quality gates
         self._render_gates(report)
 
-        # 6. Summary
+        # 10. Summary
         self._render_summary(report)
+
+    def _render_preflight(self, report: DryRunReport) -> None:
+        """Render pre-flight checks panel."""
+        pf = report.preflight
+        if not pf:
+            return
+
+        lines: list[Text] = []
+        for check in pf.checks:
+            line = Text()
+            if check.passed:
+                line.append("  ✓ ", style="green")
+            elif check.severity == "warning":
+                line.append("  ⚠ ", style="yellow")
+            else:
+                line.append("  ✗ ", style="red")
+            line.append(f"{check.name}: {check.message}")
+            lines.append(line)
+
+        content = Text("\n").join(lines) if lines else Text("  No checks run")
+        console.print(Panel(content, title="[bold]Pre-flight[/bold]", title_align="left"))
 
     def _render_validation(self, report: DryRunReport) -> None:
         """Render the validation checks panel."""
@@ -355,6 +422,51 @@ class DryRunSimulator:
         content = Text("\n").join(lines) if lines else Text("  No checks run")
         console.print(Panel(content, title="[bold]Validation[/bold]", title_align="left"))
 
+    def _render_risk(self, report: DryRunReport) -> None:
+        """Render risk assessment panel."""
+        risk = report.risk
+        if not risk:
+            return
+
+        lines: list[Text] = []
+
+        # Grade header
+        grade_colors = {"A": "green", "B": "yellow", "C": "red", "D": "bold red"}
+        grade_line = Text()
+        grade_line.append("  Grade: ", style="dim")
+        grade_line.append(
+            risk.grade,
+            style=grade_colors.get(risk.grade, "white"),
+        )
+        grade_line.append(f" (score: {risk.overall_score:.2f})")
+        lines.append(grade_line)
+
+        # Critical path
+        if risk.critical_path:
+            cp_line = Text()
+            cp_line.append("  Critical path: ", style="dim")
+            cp_line.append(" → ".join(risk.critical_path))
+            lines.append(cp_line)
+
+        # Risk factors
+        for factor in risk.risk_factors:
+            fl = Text()
+            fl.append("  ⚠ ", style="yellow")
+            fl.append(factor)
+            lines.append(fl)
+
+        # High-risk tasks
+        for tr in risk.high_risk_tasks:
+            tl = Text()
+            tl.append("  ✗ ", style="red")
+            tl.append(f"{tr.task_id}: score {tr.score:.2f}")
+            if tr.factors:
+                tl.append(f" ({', '.join(tr.factors)})", style="dim")
+            lines.append(tl)
+
+        content = Text("\n").join(lines)
+        console.print(Panel(content, title="[bold]Risk Assessment[/bold]", title_align="left"))
+
     def _render_levels(self, report: DryRunReport) -> None:
         """Render per-level task tables."""
         tasks = report.task_data.get("tasks", [])
@@ -369,6 +481,12 @@ class DryRunSimulator:
         assigner = WorkerAssignment(report.workers)
         assigner.assign(tasks, report.feature)
 
+        # Get risk data for per-task risk column
+        risk_map: dict[str, float] = {}
+        if report.risk:
+            for tr in report.risk.task_risks:
+                risk_map[tr.task_id] = tr.score
+
         for level_num in sorted(level_tasks.keys()):
             level_info = levels_info.get(str(level_num), {})
             timeline = report.timeline.per_level.get(level_num) if report.timeline else None
@@ -381,18 +499,27 @@ class DryRunSimulator:
 
             table = Table(show_header=True)
             table.add_column("Task", style="cyan", width=15)
-            table.add_column("Title", width=40)
+            table.add_column("Title", width=35)
             table.add_column("Worker", justify="center", width=8)
             table.add_column("Est.", justify="right", width=6)
+            table.add_column("Risk", justify="center", width=6)
 
             for task in level_tasks[level_num]:
                 worker = assigner.get_task_worker(task["id"])
                 critical = "⭐ " if task.get("critical_path") else ""
+                risk_score = risk_map.get(task["id"], 0)
+                if risk_score >= 0.7:
+                    risk_str = f"[red]{risk_score:.1f}[/red]"
+                elif risk_score >= 0.4:
+                    risk_str = f"[yellow]{risk_score:.1f}[/yellow]"
+                else:
+                    risk_str = f"[green]{risk_score:.1f}[/green]"
                 table.add_row(
                     task["id"],
                     critical + task.get("title", ""),
                     str(worker) if worker is not None else "-",
                     f"{task.get('estimate_minutes', '?')}m",
+                    risk_str,
                 )
 
             console.print(table)
@@ -426,6 +553,19 @@ class DryRunSimulator:
         content = Text("\n").join(lines)
         console.print(Panel(content, title="[bold]Worker Load Balance[/bold]", title_align="left"))
 
+    def _render_gantt(self, report: DryRunReport) -> None:
+        """Render Gantt-style timeline visualization."""
+        tl = report.timeline
+        if not tl or not tl.per_level:
+            return
+
+        gantt_text = render_gantt_chart(
+            per_level=tl.per_level,
+            worker_count=report.workers,
+            chart_width=50,
+        )
+        console.print(Panel(gantt_text, title="[bold]Gantt Timeline[/bold]", title_align="left"))
+
     def _render_timeline(self, report: DryRunReport) -> None:
         """Render timeline estimate panel."""
         tl = report.timeline
@@ -443,6 +583,45 @@ class DryRunSimulator:
         lines.append(f"{tl.parallelization_efficiency:.0%}")
 
         console.print(Panel(lines, title="[bold]Timeline Estimate[/bold]", title_align="left"))
+
+    def _render_snapshots(self, report: DryRunReport) -> None:
+        """Render projected status snapshots at key time points."""
+        tl = report.timeline
+        if not tl or not tl.per_level:
+            return
+
+        lines: list[Text] = []
+        cumulative = 0
+
+        for level_num in sorted(tl.per_level.keys()):
+            lt = tl.per_level[level_num]
+            midpoint = cumulative + lt.wall_minutes // 2
+            end = cumulative + lt.wall_minutes
+
+            # Midpoint snapshot
+            active_workers = sum(1 for m in lt.worker_loads.values() if m > 0)
+            idle_workers = report.workers - active_workers
+
+            mid_line = Text()
+            mid_line.append(f"  t={midpoint}m: ", style="bold")
+            mid_line.append(f"L{level_num} ~50% complete, ")
+            mid_line.append(f"{active_workers} workers active")
+            if idle_workers > 0:
+                mid_line.append(f", {idle_workers} idle", style="dim")
+            lines.append(mid_line)
+
+            # End snapshot
+            end_line = Text()
+            end_line.append(f"  t={end}m: ", style="bold")
+            end_line.append(f"L{level_num} complete")
+            if level_num < max(tl.per_level.keys()):
+                end_line.append(" → merging → next level", style="dim")
+            lines.append(end_line)
+
+            cumulative = end
+
+        content = Text("\n").join(lines)
+        console.print(Panel(content, title="[bold]Projected Snapshots[/bold]", title_align="left"))
 
     def _render_gates(self, report: DryRunReport) -> None:
         """Render quality gates panel."""
@@ -477,7 +656,13 @@ class DryRunSimulator:
             + len(report.dependency_issues)
             + len(report.resource_issues)
         )
+        if report.preflight:
+            error_count += len(report.preflight.errors)
+
         warning_count = len(report.missing_verifications)
+        if report.preflight:
+            warning_count += len(report.preflight.warnings)
+
         gate_failures = sum(
             1 for g in report.gate_results if g.status == "failed" and g.required
         )

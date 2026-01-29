@@ -27,7 +27,9 @@ def mock_deps():
         state.load.return_value = {}
         state.get_task_status.return_value = None
         state.get_task_retry_count.return_value = 0
+        state.increment_task_retry.return_value = 1
         state.get_failed_tasks.return_value = []
+        state.get_tasks_ready_for_retry.return_value = []
         state_mock.return_value = state
 
         levels = MagicMock()
@@ -249,8 +251,9 @@ class TestRetry:
         will_retry = orch._handle_task_failure("TASK-001", 0, "Test error")
 
         assert will_retry is True
-        mock_deps["state"].increment_task_retry.assert_called_with("TASK-001")
-        mock_deps["state"].set_task_status.assert_called_with("TASK-001", TaskStatus.PENDING)
+        mock_deps["state"].increment_task_retry.assert_called_once()
+        assert mock_deps["state"].increment_task_retry.call_args[0][0] == "TASK-001"
+        mock_deps["state"].set_task_status.assert_called_with("TASK-001", "waiting_retry")
 
     def test_handle_task_failure_exceeds_limit(
         self, mock_deps, tmp_path: Path, monkeypatch

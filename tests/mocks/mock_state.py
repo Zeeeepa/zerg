@@ -634,11 +634,12 @@ class MockStateManager:
         task_state = self._state.get("tasks", {}).get(task_id, {})
         return task_state.get("retry_count", 0)
 
-    def increment_task_retry(self, task_id: str) -> int:
+    def increment_task_retry(self, task_id: str, next_retry_at: str | None = None) -> int:
         """Increment and return the retry count for a task.
 
         Args:
             task_id: Task identifier
+            next_retry_at: Optional ISO timestamp for when retry becomes eligible
 
         Returns:
             New retry count
@@ -653,6 +654,9 @@ class MockStateManager:
         retry_count = task_state.get("retry_count", 0) + 1
         task_state["retry_count"] = retry_count
         task_state["last_retry_at"] = datetime.now().isoformat()
+
+        if next_retry_at:
+            task_state["next_retry_at"] = next_retry_at
 
         self.save()
         return retry_count
