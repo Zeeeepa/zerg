@@ -19,3 +19,6 @@
 | 6 | Log aggregation | Consolidate worker logs into single view with filtering | Medium | Open |
 | 7 | Task retry logic | Auto-retry failed tasks with backoff, max attempts | Medium | Open |
 | 8 | Dry-run improvements | Better simulation of rush without actual execution | Medium | Open |
+| 9 | Troubleshoot enhancement | Improve `/zerg:troubleshoot` to be a world-class debugger — deep root-cause analysis, automated log correlation, hypothesis testing, fix suggestions, environment diagnostics, and structured resolution workflows | Large | Open |
+| 10 | `/z` shortcut alias | Create `/z` shortcut for all `/zerg` commands (e.g., `/z:rush`, `/z:status`). Support both prefixes with full autocomplete parity | Medium | Open |
+| 11 | Rename troubleshoot → debug | Rename `/zerg:troubleshoot` to `/zerg:debug` (and `zerg troubleshoot` to `zerg debug`). Cascade rename across all code, commands, docs, tests, and references project-wide | Medium | Open |
