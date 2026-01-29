@@ -497,11 +497,12 @@ class StateManager:
             task_state = self._state.get("tasks", {}).get(task_id, {})
             return task_state.get("retry_count", 0)
 
-    def increment_task_retry(self, task_id: str) -> int:
+    def increment_task_retry(self, task_id: str, next_retry_at: str | None = None) -> int:
         """Increment and return the retry count for a task.
 
         Args:
             task_id: Task identifier
+            next_retry_at: Optional ISO timestamp for when retry becomes eligible
 
         Returns:
             New retry count
@@ -518,9 +519,62 @@ class StateManager:
             task_state["retry_count"] = retry_count
             task_state["last_retry_at"] = datetime.now().isoformat()
 
+            if next_retry_at:
+                task_state["next_retry_at"] = next_retry_at
+
         self.save()
         logger.debug(f"Task {task_id} retry count: {retry_count}")
         return retry_count
+
+    def set_task_retry_schedule(self, task_id: str, next_retry_at: str) -> None:
+        """Set the next retry timestamp for a task.
+
+        Args:
+            task_id: Task identifier
+            next_retry_at: ISO timestamp for when retry becomes eligible
+        """
+        with self._lock:
+            if "tasks" not in self._state:
+                self._state["tasks"] = {}
+
+            if task_id not in self._state["tasks"]:
+                self._state["tasks"][task_id] = {}
+
+            self._state["tasks"][task_id]["next_retry_at"] = next_retry_at
+
+        self.save()
+        logger.debug(f"Task {task_id} next retry at: {next_retry_at}")
+
+    def get_task_retry_schedule(self, task_id: str) -> str | None:
+        """Get the next retry timestamp for a task.
+
+        Args:
+            task_id: Task identifier
+
+        Returns:
+            ISO timestamp string or None if not scheduled
+        """
+        with self._lock:
+            task_state = self._state.get("tasks", {}).get(task_id, {})
+            return task_state.get("next_retry_at")
+
+    def get_tasks_ready_for_retry(self) -> list[str]:
+        """Get task IDs whose scheduled retry time has passed.
+
+        Returns:
+            List of task IDs ready for retry
+        """
+        now = datetime.now().isoformat()
+        with self._lock:
+            ready = []
+            for task_id, task_state in self._state.get("tasks", {}).items():
+                next_retry = task_state.get("next_retry_at")
+                if next_retry and next_retry <= now:
+                    # Only include tasks that are still in a retryable state
+                    status = task_state.get("status")
+                    if status in (TaskStatus.FAILED.value, "waiting_retry"):
+                        ready.append(task_id)
+            return ready
 
     def reset_task_retry(self, task_id: str) -> None:
         """Reset the retry count for a task.

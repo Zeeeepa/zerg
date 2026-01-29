@@ -412,3 +412,135 @@ class TestContainerLauncherConfiguration:
         )
 
         mock_launcher_instance.ensure_network.assert_called_once()
+
+
+class TestContainerModeEnforcement:
+    """Tests that explicit container mode never silently falls back to subprocess."""
+
+    @patch("zerg.orchestrator.StateManager")
+    @patch("zerg.orchestrator.LevelController")
+    @patch("zerg.orchestrator.TaskParser")
+    @patch("zerg.orchestrator.GateRunner")
+    @patch("zerg.orchestrator.WorktreeManager")
+    @patch("zerg.orchestrator.ContainerManager")
+    @patch("zerg.orchestrator.PortAllocator")
+    @patch("zerg.orchestrator.MergeCoordinator")
+    @patch("zerg.orchestrator.TaskSyncBridge")
+    @patch("zerg.orchestrator.SubprocessLauncher")
+    @patch("zerg.orchestrator.ContainerLauncher")
+    def test_explicit_container_never_produces_subprocess(
+        self,
+        mock_container_launcher_class: MagicMock,
+        mock_subprocess_launcher_class: MagicMock,
+        mock_task_sync: MagicMock,
+        mock_merge_coordinator: MagicMock,
+        mock_port_allocator: MagicMock,
+        mock_container_manager: MagicMock,
+        mock_worktree_manager: MagicMock,
+        mock_gate_runner: MagicMock,
+        mock_task_parser: MagicMock,
+        mock_level_controller: MagicMock,
+        mock_state_manager: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Explicit container mode must always produce ContainerLauncher."""
+        mock_launcher_instance = MagicMock(spec=ContainerLauncher)
+        mock_launcher_instance.ensure_network.return_value = True
+        mock_container_launcher_class.return_value = mock_launcher_instance
+
+        config = ZergConfig()
+        orch = Orchestrator(
+            feature="test-feature",
+            config=config,
+            repo_path=tmp_path,
+            launcher_mode="container",
+        )
+
+        assert orch.launcher is mock_launcher_instance
+        mock_subprocess_launcher_class.assert_not_called()
+
+    @patch("zerg.orchestrator.StateManager")
+    @patch("zerg.orchestrator.LevelController")
+    @patch("zerg.orchestrator.TaskParser")
+    @patch("zerg.orchestrator.GateRunner")
+    @patch("zerg.orchestrator.WorktreeManager")
+    @patch("zerg.orchestrator.ContainerManager")
+    @patch("zerg.orchestrator.PortAllocator")
+    @patch("zerg.orchestrator.MergeCoordinator")
+    @patch("zerg.orchestrator.TaskSyncBridge")
+    @patch("zerg.orchestrator.ContainerLauncher")
+    def test_explicit_container_raises_on_network_failure(
+        self,
+        mock_container_launcher_class: MagicMock,
+        mock_task_sync: MagicMock,
+        mock_merge_coordinator: MagicMock,
+        mock_port_allocator: MagicMock,
+        mock_container_manager: MagicMock,
+        mock_worktree_manager: MagicMock,
+        mock_gate_runner: MagicMock,
+        mock_task_parser: MagicMock,
+        mock_level_controller: MagicMock,
+        mock_state_manager: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Explicit container mode must raise when network setup fails."""
+        mock_launcher_instance = MagicMock(spec=ContainerLauncher)
+        mock_launcher_instance.ensure_network.return_value = False
+        mock_container_launcher_class.return_value = mock_launcher_instance
+
+        config = ZergConfig()
+        with pytest.raises(RuntimeError, match="explicitly requested"):
+            Orchestrator(
+                feature="test-feature",
+                config=config,
+                repo_path=tmp_path,
+                launcher_mode="container",
+            )
+
+    @patch("zerg.orchestrator.StateManager")
+    @patch("zerg.orchestrator.LevelController")
+    @patch("zerg.orchestrator.TaskParser")
+    @patch("zerg.orchestrator.GateRunner")
+    @patch("zerg.orchestrator.WorktreeManager")
+    @patch("zerg.orchestrator.ContainerManager")
+    @patch("zerg.orchestrator.PortAllocator")
+    @patch("zerg.orchestrator.MergeCoordinator")
+    @patch("zerg.orchestrator.TaskSyncBridge")
+    @patch("zerg.orchestrator.SubprocessLauncher")
+    @patch("zerg.orchestrator.ContainerLauncher")
+    @patch.object(Orchestrator, "_auto_detect_launcher_type", return_value=LauncherType.CONTAINER)
+    def test_auto_container_falls_back_on_network_failure(
+        self,
+        mock_auto_detect: MagicMock,
+        mock_container_launcher_class: MagicMock,
+        mock_subprocess_launcher_class: MagicMock,
+        mock_task_sync: MagicMock,
+        mock_merge_coordinator: MagicMock,
+        mock_port_allocator: MagicMock,
+        mock_container_manager: MagicMock,
+        mock_worktree_manager: MagicMock,
+        mock_gate_runner: MagicMock,
+        mock_task_parser: MagicMock,
+        mock_level_controller: MagicMock,
+        mock_state_manager: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Auto-detected container mode falls back to subprocess on network failure."""
+        mock_launcher_instance = MagicMock(spec=ContainerLauncher)
+        mock_launcher_instance.ensure_network.return_value = False
+        mock_container_launcher_class.return_value = mock_launcher_instance
+
+        mock_subprocess_instance = MagicMock(spec=SubprocessLauncher)
+        mock_subprocess_launcher_class.return_value = mock_subprocess_instance
+
+        config = ZergConfig()
+        orch = Orchestrator(
+            feature="test-feature",
+            config=config,
+            repo_path=tmp_path,
+            launcher_mode="auto",
+        )
+
+        # Should have fallen back to subprocess
+        mock_subprocess_launcher_class.assert_called_once()
+        assert orch.launcher is mock_subprocess_instance

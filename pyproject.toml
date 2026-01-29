@@ -81,4 +81,5 @@ filterwarnings = [
 markers = [
     "real_e2e: Tests requiring real Claude API access",
     "slow: Slow-running tests",
+    "docker: Tests requiring a running Docker daemon",
 ]

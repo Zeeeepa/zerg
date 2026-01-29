@@ -43,7 +43,9 @@ def mock_orchestrator_deps():
         state.load.return_value = {}
         state.get_task_status.return_value = None
         state.get_task_retry_count.return_value = 0
+        state.increment_task_retry.return_value = 1
         state.get_failed_tasks.return_value = []
+        state.get_tasks_ready_for_retry.return_value = []
         state.generate_state_md.return_value = None
         state_mock.return_value = state
 
@@ -124,7 +126,7 @@ def mock_orchestrator_deps():
         container_launcher.spawn.return_value = spawn_result
         container_launcher.monitor.return_value = WorkerStatus.RUNNING
         container_launcher.terminate.return_value = True
-        container_launcher.ensure_network.return_value = None
+        container_launcher.ensure_network.return_value = True
         container_launcher_mock.return_value = container_launcher
 
         yield {
@@ -308,7 +310,7 @@ class TestStartMethod:
         orch = Orchestrator("test-feature")
         # Don't run actual main loop
         with patch.object(orch, "_main_loop"):
-            with patch.object(orch, "_spawn_workers"):
+            with patch.object(orch, "_spawn_workers", return_value=3):
                 with patch.object(orch, "_start_level"):
                     orch.start(task_graph_path, worker_count=3)
 
@@ -355,7 +357,7 @@ class TestStartMethod:
         orch = Orchestrator("test-feature")
 
         with patch.object(orch, "_main_loop"):
-            with patch.object(orch, "_spawn_workers"):
+            with patch.object(orch, "_spawn_workers", return_value=3):
                 with patch.object(orch, "_start_level") as start_level_mock:
                     orch.start(task_graph_path, worker_count=3, start_level=2)
 
@@ -801,6 +803,138 @@ class TestSpawnWorkers:
         # Should have attempted all 3
         assert mock_orchestrator_deps["subprocess_launcher"].spawn.call_count == 3
 
+    def test_spawn_workers_returns_count(
+        self, mock_orchestrator_deps, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Test _spawn_workers returns number of successfully spawned workers."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".zerg").mkdir()
+
+        orch = Orchestrator("test-feature")
+        result = orch._spawn_workers(3)
+
+        assert result == 3
+
+    def test_spawn_workers_returns_partial_count(
+        self, mock_orchestrator_deps, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Test _spawn_workers returns partial count when some fail."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".zerg").mkdir()
+
+        spawn_success = MagicMock()
+        spawn_success.success = True
+        spawn_success.handle = MagicMock()
+        spawn_success.handle.container_id = None
+        spawn_success.error = None
+
+        # Second worker raises an exception
+        mock_orchestrator_deps["subprocess_launcher"].spawn.side_effect = [
+            spawn_success,
+            Exception("Spawn failed"),
+            spawn_success,
+        ]
+
+        orch = Orchestrator("test-feature")
+        result = orch._spawn_workers(3)
+
+        assert result == 2
+
+    def test_spawn_workers_all_fail_returns_zero(
+        self, mock_orchestrator_deps, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Test _spawn_workers returns 0 when all workers fail."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".zerg").mkdir()
+
+        mock_orchestrator_deps["subprocess_launcher"].spawn.side_effect = Exception(
+            "Spawn failed"
+        )
+
+        orch = Orchestrator("test-feature")
+        result = orch._spawn_workers(3)
+
+        assert result == 0
+
+
+class TestStartSpawnValidation:
+    """Tests for start() spawn count validation."""
+
+    def test_start_raises_when_all_spawns_fail(
+        self, mock_orchestrator_deps, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Test start raises RuntimeError when all workers fail to spawn."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".zerg").mkdir()
+        (tmp_path / ".gsd" / "specs" / "test-feature").mkdir(parents=True)
+        task_graph_path = tmp_path / "task-graph.json"
+        task_graph_path.write_text('{"tasks": []}')
+
+        mock_orchestrator_deps["parser"].get_all_tasks.return_value = [
+            {"id": "TASK-001", "level": 1}
+        ]
+
+        orch = Orchestrator("test-feature")
+
+        with patch.object(orch, "_spawn_workers", return_value=0):
+            with pytest.raises(RuntimeError, match="All 3 workers failed to spawn"):
+                orch.start(task_graph_path, worker_count=3)
+
+    def test_start_continues_with_partial_spawns(
+        self, mock_orchestrator_deps, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Test start continues when some workers spawn successfully."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".zerg").mkdir()
+        (tmp_path / ".gsd" / "specs" / "test-feature").mkdir(parents=True)
+        task_graph_path = tmp_path / "task-graph.json"
+        task_graph_path.write_text('{"tasks": []}')
+
+        mock_orchestrator_deps["parser"].get_all_tasks.return_value = [
+            {"id": "TASK-001", "level": 1}
+        ]
+
+        orch = Orchestrator("test-feature")
+
+        with patch.object(orch, "_spawn_workers", return_value=2):
+            with patch.object(orch, "_main_loop"):
+                with patch.object(orch, "_start_level"):
+                    with patch.object(orch, "_wait_for_initialization"):
+                        orch.start(task_graph_path, worker_count=3)
+
+        # Should not raise — completed successfully
+
+    def test_start_records_rush_failed_event(
+        self, mock_orchestrator_deps, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Test start records rush_failed event when all spawns fail."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".zerg").mkdir()
+        (tmp_path / ".gsd" / "specs" / "test-feature").mkdir(parents=True)
+        task_graph_path = tmp_path / "task-graph.json"
+        task_graph_path.write_text('{"tasks": []}')
+
+        mock_orchestrator_deps["parser"].get_all_tasks.return_value = [
+            {"id": "TASK-001", "level": 1}
+        ]
+
+        orch = Orchestrator("test-feature")
+
+        with patch.object(orch, "_spawn_workers", return_value=0):
+            with pytest.raises(RuntimeError):
+                orch.start(task_graph_path, worker_count=3)
+
+        # Verify rush_failed event was recorded
+        event_calls = mock_orchestrator_deps["state"].append_event.call_args_list
+        rush_failed = [c for c in event_calls if c[0][0] == "rush_failed"]
+        assert len(rush_failed) == 1
+        event_data = rush_failed[0][0][1]
+        assert event_data["reason"] == "No workers spawned"
+        assert event_data["requested"] == 3
+
+        # Verify state.save() was called
+        mock_orchestrator_deps["state"].save.assert_called()
+
 
 class TestTerminateWorker:
     """Tests for _terminate_worker method."""
@@ -1173,15 +1307,17 @@ class TestTaskFailureHandling:
         will_retry = orch._handle_task_failure("TASK-001", 0, "Test error")
 
         assert will_retry is True
-        mock_orchestrator_deps["state"].append_event.assert_called_with(
-            "task_retry",
-            {
-                "task_id": "TASK-001",
-                "worker_id": 0,
-                "retry_count": 1,
-                "error": "Test error",
-            },
-        )
+        # Event name changed to task_retry_scheduled with backoff info
+        event_calls = mock_orchestrator_deps["state"].append_event.call_args_list
+        retry_call = [c for c in event_calls if c[0][0] == "task_retry_scheduled"]
+        assert len(retry_call) == 1
+        event_data = retry_call[0][0][1]
+        assert event_data["task_id"] == "TASK-001"
+        assert event_data["worker_id"] == 0
+        assert event_data["retry_count"] == 1
+        assert event_data["error"] == "Test error"
+        assert "backoff_seconds" in event_data
+        assert "next_retry_at" in event_data
 
     def test_handle_task_failure_permanent_emits_event(
         self, mock_orchestrator_deps, tmp_path: Path, monkeypatch

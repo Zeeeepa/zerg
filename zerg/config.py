@@ -36,6 +36,11 @@ class WorkersConfig(BaseModel):
         default=int(DEFAULT_CONTEXT_THRESHOLD * 100), ge=50, le=90
     )
     launcher_type: str = Field(default="subprocess", pattern="^(subprocess|container)$")
+    backoff_strategy: str = Field(
+        default="exponential", pattern="^(exponential|linear|fixed)$"
+    )
+    backoff_base_seconds: int = Field(default=30, ge=1, le=600)
+    backoff_max_seconds: int = Field(default=300, ge=1, le=3600)
 
 
 class PortsConfig(BaseModel):

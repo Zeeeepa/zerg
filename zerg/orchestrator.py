@@ -5,7 +5,7 @@ import contextlib
 import subprocess as sp
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +37,7 @@ from zerg.metrics import MetricsCollector, duration_ms
 from zerg.parser import TaskParser
 from zerg.plugins import LifecycleEvent, PluginRegistry
 from zerg.ports import PortAllocator
+from zerg.retry_backoff import RetryBackoffCalculator
 from zerg.state import StateManager
 from zerg.task_sync import TaskSyncBridge
 from zerg.types import WorkerState
@@ -168,7 +169,18 @@ class Orchestrator:
                 cpu_limit=self.config.resources.container_cpu_limit,
             )
             # Ensure network exists
-            launcher.ensure_network()
+            network_ok = launcher.ensure_network()
+            if not network_ok:
+                if mode == "container":
+                    raise RuntimeError(
+                        "Container mode explicitly requested but Docker network "
+                        "creation failed. Check that Docker is running and accessible."
+                    )
+                # Auto-detected container mode: fall back gracefully
+                logger.warning(
+                    "Docker network setup failed, falling back to subprocess"
+                )
+                return SubprocessLauncher(config)
             logger.info("Using ContainerLauncher")
             return launcher
         else:
@@ -313,7 +325,23 @@ class Orchestrator:
 
         # Start execution
         self._running = True
-        self._spawn_workers(worker_count)
+        spawned = self._spawn_workers(worker_count)
+        if spawned == 0:
+            self.state.append_event("rush_failed", {
+                "reason": "No workers spawned",
+                "requested": worker_count,
+                "mode": self._launcher_mode,
+            })
+            self.state.save()
+            raise RuntimeError(
+                f"All {worker_count} workers failed to spawn"
+                f" (mode={self._launcher_mode}). Cannot proceed."
+            )
+        if spawned < worker_count:
+            logger.warning(
+                f"Only {spawned}/{worker_count} workers spawned."
+                " Continuing with reduced capacity."
+            )
 
         # Wait for workers to initialize before starting level
         self._wait_for_initialization(timeout=600)
@@ -390,6 +418,16 @@ class Orchestrator:
             "metrics": metrics_dict,
         }
 
+    def _check_retry_ready_tasks(self) -> None:
+        """Check for tasks whose backoff period has elapsed and requeue them."""
+        ready_tasks = self.state.get_tasks_ready_for_retry()
+        for task_id in ready_tasks:
+            logger.info(f"Task {task_id} backoff elapsed, requeueing for retry")
+            self.state.set_task_status(task_id, TaskStatus.PENDING)
+            # Clear the schedule so it's not picked up again
+            self.state.set_task_retry_schedule(task_id, "")
+            self.state.append_event("task_retry_ready", {"task_id": task_id})
+
     def _main_loop(self) -> None:
         """Main orchestration loop."""
         logger.info("Starting main loop")
@@ -398,6 +436,9 @@ class Orchestrator:
             try:
                 # Poll worker status
                 self._poll_workers()
+
+                # Check for tasks ready to retry after backoff
+                self._check_retry_ready_tasks()
 
                 # Check level completion
                 if self.levels.is_level_complete(self.levels.current_level):
@@ -751,20 +792,27 @@ class Orchestrator:
 
         return worker_state
 
-    def _spawn_workers(self, count: int) -> None:
+    def _spawn_workers(self, count: int) -> int:
         """Spawn multiple workers.
 
         Args:
             count: Number of workers to spawn
+
+        Returns:
+            Number of workers successfully spawned.
         """
         logger.info(f"Spawning {count} workers")
+        spawned = 0
 
         for worker_id in range(count):
             try:
                 self._spawn_worker(worker_id)
+                spawned += 1
             except Exception as e:
                 logger.error(f"Failed to spawn worker {worker_id}: {e}")
                 # Continue with other workers
+
+        return spawned
 
     def _wait_for_initialization(self, timeout: int = 600) -> bool:
         """Wait for all workers to initialize.
@@ -919,7 +967,7 @@ class Orchestrator:
         worker_id: int,
         error: str,
     ) -> bool:
-        """Handle a task failure with retry logic.
+        """Handle a task failure with retry logic and backoff.
 
         Args:
             task_id: Failed task ID
@@ -932,21 +980,46 @@ class Orchestrator:
         retry_count = self.state.get_task_retry_count(task_id)
 
         if retry_count < self._max_retry_attempts:
-            # Increment retry and requeue
-            new_count = self.state.increment_task_retry(task_id)
-            logger.warning(
-                f"Task {task_id} failed (attempt {new_count}/{self._max_retry_attempts}), "
-                f"will retry: {error}"
+            # Calculate backoff delay
+            delay = RetryBackoffCalculator.calculate_delay(
+                attempt=retry_count + 1,
+                strategy=self.config.workers.backoff_strategy,
+                base_seconds=self.config.workers.backoff_base_seconds,
+                max_seconds=self.config.workers.backoff_max_seconds,
             )
 
-            # Reset task to pending for retry
-            self.state.set_task_status(task_id, TaskStatus.PENDING)
-            self.state.append_event("task_retry", {
+            # Schedule retry
+            next_retry_at = (
+                datetime.now() + timedelta(seconds=delay)
+            ).isoformat()
+
+            new_count = self.state.increment_task_retry(task_id, next_retry_at=next_retry_at)
+            self.state.set_task_retry_schedule(task_id, next_retry_at)
+
+            logger.warning(
+                f"Task {task_id} failed (attempt {new_count}/{self._max_retry_attempts}), "
+                f"will retry in {delay:.0f}s: {error}"
+            )
+
+            # Mark as waiting_retry instead of immediately pending
+            self.state.set_task_status(task_id, "waiting_retry")
+            self.state.append_event("task_retry_scheduled", {
                 "task_id": task_id,
                 "worker_id": worker_id,
                 "retry_count": new_count,
+                "backoff_seconds": round(delay),
+                "next_retry_at": next_retry_at,
                 "error": error,
             })
+
+            if self._structured_writer:
+                self._structured_writer.emit(
+                    "warn",
+                    f"Task {task_id} retry {new_count} scheduled in {delay:.0f}s",
+                    event=LogEvent.TASK_FAILED,
+                    data={"task_id": task_id, "backoff_seconds": round(delay)},
+                )
+
             return True
         else:
             # Exceeded retry limit

@@ -11,6 +11,9 @@ workers:
   retry_attempts: 2
   context_threshold_percent: 70
   launcher_type: subprocess
+  backoff_strategy: exponential
+  backoff_base_seconds: 30
+  backoff_max_seconds: 300
 
 ports:
   range_start: 49152

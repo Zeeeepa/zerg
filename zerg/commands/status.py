@@ -202,6 +202,7 @@ class DashboardRenderer:
             self._render_progress(),
             self._render_levels(),
             self._render_workers(),
+            self._render_retry_info(),
             self._render_events(),
         )
 
@@ -334,6 +335,59 @@ class DashboardRenderer:
         content = Text("[dim]No workers active[/dim]") if not lines else Text("\n").join(lines)
         return Panel(content, title="[bold]WORKERS[/bold]", title_align="left", padding=(0, 1))
 
+    def _render_retry_info(self) -> Panel:
+        """Render retry status section showing tasks awaiting or scheduled for retry."""
+        tasks = self.state._state.get("tasks", {})
+        now = datetime.now()
+
+        lines = []
+        awaiting_count = 0
+
+        for task_id, task_state in sorted(tasks.items()):
+            retry_count = task_state.get("retry_count", 0)
+            if retry_count == 0:
+                continue
+
+            max_retries = task_state.get("max_retries", 3)  # fallback
+            next_retry = task_state.get("next_retry_at")
+            status = task_state.get("status")
+
+            line = Text()
+            line.append(f"{task_id:16}", style="bold")
+            line.append(f"{retry_count}/{max_retries} ", style="yellow")
+
+            if status == "waiting_retry" and next_retry:
+                awaiting_count += 1
+                try:
+                    retry_dt = datetime.fromisoformat(next_retry)
+                    remaining = (retry_dt - now).total_seconds()
+                    if remaining > 0:
+                        line.append(f"in {int(remaining)}s", style="cyan")
+                    else:
+                        line.append("ready", style="green")
+                except (ValueError, TypeError):
+                    line.append("scheduled", style="dim")
+            elif status == TaskStatus.FAILED.value:
+                line.append("exhausted", style="red")
+            elif status == TaskStatus.COMPLETE.value:
+                line.append("recovered", style="green")
+            else:
+                line.append(status or "?", style="dim")
+
+            lines.append(line)
+
+        if not lines:
+            content = Text("[dim]No retries[/dim]")
+        else:
+            summary = Text()
+            if awaiting_count > 0:
+                summary.append(f"{awaiting_count} task(s) awaiting retry", style="yellow")
+                summary.append("\n")
+            summary.append(Text("\n").join(lines))
+            content = summary
+
+        return Panel(content, title="[bold]RETRIES[/bold]", title_align="left", padding=(0, 1))
+
     def _render_events(self, limit: int = 4) -> Panel:
         """Render recent events section.
 
@@ -388,6 +442,15 @@ class DashboardRenderer:
             elif event_type == "merge_complete":
                 line.append("✓ ", style="green")
                 line.append(f"Level {data.get('level', '?')} merge complete")
+            elif event_type == "task_retry_scheduled":
+                task_id = data.get("task_id", "?")
+                backoff = data.get("backoff_seconds", "?")
+                retry_num = data.get("retry_count", "?")
+                line.append("↻ ", style="yellow")
+                line.append(f"{task_id} retry #{retry_num} in {backoff}s")
+            elif event_type == "task_retry_ready":
+                line.append("↻ ", style="green")
+                line.append(f"{data.get('task_id', '?')} retry ready")
             else:
                 line.append(f"  {event_type}")
 

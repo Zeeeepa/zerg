@@ -353,10 +353,20 @@ zerg rush --mode auto
 ```
 
 Auto-detection logic:
-1. If `--mode` is explicitly set → use that mode
+1. If `--mode` is explicitly set (or `--container`/`--subprocess` shorthand) → use that mode. **This overrides all other rules.**
 2. If `.devcontainer/devcontainer.json` exists AND worker image is built → **container mode**
-3. If running as a Claude Code slash command (`/zerg:rush`) → **task mode**
+3. If running as a Claude Code slash command (`/zerg:rush`) and no explicit mode → **task mode**
 4. Otherwise → **subprocess mode**
+
+**IMPORTANT**: When `--mode container` or `--container` is specified, you MUST invoke the Python Orchestrator via subprocess, NOT use task-tool mode. Run:
+```bash
+python3 -c "
+from zerg.orchestrator import Orchestrator
+orch = Orchestrator(feature='$FEATURE', launcher_mode='container')
+orch.start(task_graph_path='.gsd/specs/$FEATURE/task-graph.json', worker_count=$WORKERS)
+"
+```
+This spawns Docker containers through ContainerLauncher with git worktrees, state IPC, and merge coordination.
 
 ### Subprocess Mode
 
