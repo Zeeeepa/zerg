@@ -56,9 +56,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Ensure 'python' symlink exists (some containers only have python3)
+# Ensure 'python' is available (some containers only have python3)
 if ! command -v python &>/dev/null && command -v python3 &>/dev/null; then
-    ln -sf "$(command -v python3)" /usr/local/bin/python
+    # Try system path first, fall back to user-writable location
+    ln -sf "$(command -v python3)" /usr/local/bin/python 2>/dev/null || \
+    ln -sf "$(command -v python3)" "$HOME/.local/bin/python" 2>/dev/null || \
+    { mkdir -p /tmp/bin && ln -sf "$(command -v python3)" /tmp/bin/python && export PATH="/tmp/bin:$PATH"; }
 fi
 
 # Install ZERG dependencies if not already installed
