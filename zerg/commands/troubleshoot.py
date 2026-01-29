@@ -590,22 +590,30 @@ class TroubleshootCommand:
         # ZERG health section
         if result.zerg_health is not None:
             health = result.zerg_health
-            lines.append("ZERG Health:")
-            lines.append(f"  Feature: {health.feature}")
-            lines.append(f"  Total Tasks: {health.total_tasks}")
-            if health.task_summary:
-                summary = ", ".join(
-                    f"{k}: {v}" for k, v in health.task_summary.items()
-                )
-                lines.append(f"  Status: {summary}")
-            if health.failed_tasks:
-                lines.append(f"  Failed: {len(health.failed_tasks)} task(s)")
-            if health.global_error:
-                lines.append(f"  Error: {health.global_error}")
-            lines.append("")
+            if self.config.verbose:
+                lines.append("ZERG Health:")
+                lines.append(f"  Feature: {health.feature}")
+                lines.append(f"  Total Tasks: {health.total_tasks}")
+                if health.task_summary:
+                    summary = ", ".join(
+                        f"{k}: {v}" for k, v in health.task_summary.items()
+                    )
+                    lines.append(f"  Status: {summary}")
+                if health.failed_tasks:
+                    lines.append(f"  Failed: {len(health.failed_tasks)} task(s)")
+                if health.global_error:
+                    lines.append(f"  Error: {health.global_error}")
+                lines.append("")
+            else:
+                failed = len(health.failed_tasks) if health.failed_tasks else 0
+                summary = f"ZERG: {health.feature} — {health.total_tasks} tasks"
+                if failed:
+                    summary += f", {failed} failed"
+                lines.append(summary)
+                lines.append("")
 
         # Log patterns section
-        if result.log_patterns:
+        if result.log_patterns and self.config.verbose:
             lines.append("Log Patterns:")
             for pat in result.log_patterns[:5]:
                 workers = ", ".join(str(w) for w in pat.worker_ids)
@@ -618,20 +626,27 @@ class TroubleshootCommand:
         # System health section
         if result.system_health is not None:
             sys_h = result.system_health
-            lines.append("System Health:")
-            lines.append(f"  Git: {'clean' if sys_h.git_clean else 'dirty'}")
-            lines.append(f"  Branch: {sys_h.git_branch}")
-            lines.append(f"  Disk Free: {sys_h.disk_free_gb:.1f} GB")
-            if sys_h.port_conflicts:
-                lines.append(f"  Port Conflicts: {sys_h.port_conflicts}")
-            if sys_h.orphaned_worktrees:
+            if self.config.verbose:
+                lines.append("System Health:")
+                lines.append(f"  Git: {'clean' if sys_h.git_clean else 'dirty'}")
+                lines.append(f"  Branch: {sys_h.git_branch}")
+                lines.append(f"  Disk Free: {sys_h.disk_free_gb:.1f} GB")
+                if sys_h.port_conflicts:
+                    lines.append(f"  Port Conflicts: {sys_h.port_conflicts}")
+                if sys_h.orphaned_worktrees:
+                    lines.append(
+                        f"  Orphaned Worktrees: {len(sys_h.orphaned_worktrees)}"
+                    )
+                lines.append("")
+            else:
+                git_state = "clean" if sys_h.git_clean else "dirty"
                 lines.append(
-                    f"  Orphaned Worktrees: {len(sys_h.orphaned_worktrees)}"
+                    f"System: git {git_state}, {sys_h.disk_free_gb:.1f}GB free"
                 )
-            lines.append("")
+                lines.append("")
 
         # Evidence section
-        if result.evidence:
+        if result.evidence and self.config.verbose:
             lines.append("Evidence:")
             for ev in result.evidence:
                 lines.append(f"  - {ev}")
@@ -650,17 +665,22 @@ class TroubleshootCommand:
         if result.recovery_plan is not None:
             plan = result.recovery_plan
             lines.append("")
-            lines.append("Recovery Plan:")
-            for i, step in enumerate(plan.steps, 1):
-                risk_icon = {"safe": "G", "moderate": "Y", "destructive": "R"}.get(
-                    step.risk, "?"
+            if self.config.verbose:
+                lines.append("Recovery Plan:")
+                for i, step in enumerate(plan.steps, 1):
+                    risk_icon = {"safe": "G", "moderate": "Y", "destructive": "R"}.get(
+                        step.risk, "?"
+                    )
+                    lines.append(f"  {i}. [{risk_icon}] {step.description}")
+                    lines.append(f"     $ {step.command}")
+                if plan.verification_command:
+                    lines.append(f"  Verify: {plan.verification_command}")
+                if plan.prevention:
+                    lines.append(f"  Prevent: {plan.prevention}")
+            else:
+                lines.append(
+                    f"Recovery: {len(plan.steps)} steps available (use --verbose)"
                 )
-                lines.append(f"  {i}. [{risk_icon}] {step.description}")
-                lines.append(f"     $ {step.command}")
-            if plan.verification_command:
-                lines.append(f"  Verify: {plan.verification_command}")
-            if plan.prevention:
-                lines.append(f"  Prevent: {plan.prevention}")
 
         return "\n".join(lines)
 
@@ -833,56 +853,70 @@ def troubleshoot(
             # ZERG health
             if result.zerg_health is not None:
                 health = result.zerg_health
-                console.print(
-                    Panel("[bold]ZERG State[/bold]", style="cyan")
-                )
-                console.print(f"  Feature: {health.feature}")
-                console.print(f"  Tasks: {health.total_tasks}")
-                if health.task_summary:
-                    summary = ", ".join(
-                        f"{k}: {v}"
-                        for k, v in health.task_summary.items()
-                    )
-                    console.print(f"  Status: {summary}")
-                if health.failed_tasks:
+                if verbose:
                     console.print(
-                        f"  [red]Failed: {len(health.failed_tasks)}[/red]"
+                        Panel("[bold]ZERG State[/bold]", style="cyan")
                     )
-                if health.global_error:
-                    console.print(
-                        f"  [red]Error: {health.global_error}[/red]"
-                    )
-                console.print()
+                    console.print(f"  Feature: {health.feature}")
+                    console.print(f"  Tasks: {health.total_tasks}")
+                    if health.task_summary:
+                        summary = ", ".join(
+                            f"{k}: {v}"
+                            for k, v in health.task_summary.items()
+                        )
+                        console.print(f"  Status: {summary}")
+                    if health.failed_tasks:
+                        console.print(
+                            f"  [red]Failed: {len(health.failed_tasks)}[/red]"
+                        )
+                    if health.global_error:
+                        console.print(
+                            f"  [red]Error: {health.global_error}[/red]"
+                        )
+                    console.print()
+                else:
+                    failed = len(health.failed_tasks) if health.failed_tasks else 0
+                    summary = f"ZERG: {health.feature} — {health.total_tasks} tasks"
+                    if failed:
+                        summary += f", {failed} failed"
+                    console.print(f"  [dim]{summary}[/dim]")
 
             # System health
             if result.system_health is not None:
                 sys_h = result.system_health
-                console.print(
-                    Panel("[bold]System Health[/bold]", style="cyan")
-                )
-                git_status = (
-                    "[green]clean[/green]"
-                    if sys_h.git_clean
-                    else f"[yellow]dirty ({sys_h.git_uncommitted_files} files)[/yellow]"
-                )
-                console.print(f"  Git: {git_status}")
-                console.print(f"  Branch: {sys_h.git_branch}")
-                disk_color = (
-                    "green" if sys_h.disk_free_gb >= 5.0
-                    else "yellow" if sys_h.disk_free_gb >= 1.0
-                    else "red"
-                )
-                console.print(
-                    f"  Disk: [{disk_color}]{sys_h.disk_free_gb:.1f} GB free[/{disk_color}]"
-                )
-                if sys_h.port_conflicts:
+                if verbose:
                     console.print(
-                        f"  [yellow]Port conflicts: {sys_h.port_conflicts}[/yellow]"
+                        Panel("[bold]System Health[/bold]", style="cyan")
                     )
-                console.print()
+                    git_status = (
+                        "[green]clean[/green]"
+                        if sys_h.git_clean
+                        else f"[yellow]dirty ({sys_h.git_uncommitted_files} files)[/yellow]"
+                    )
+                    console.print(f"  Git: {git_status}")
+                    console.print(f"  Branch: {sys_h.git_branch}")
+                    disk_color = (
+                        "green" if sys_h.disk_free_gb >= 5.0
+                        else "yellow" if sys_h.disk_free_gb >= 1.0
+                        else "red"
+                    )
+                    console.print(
+                        f"  Disk: [{disk_color}]{sys_h.disk_free_gb:.1f} GB free[/{disk_color}]"
+                    )
+                    if sys_h.port_conflicts:
+                        console.print(
+                            f"  [yellow]Port conflicts: {sys_h.port_conflicts}[/yellow]"
+                        )
+                    console.print()
+                else:
+                    git_state = "clean" if sys_h.git_clean else "dirty"
+                    console.print(
+                        f"  [dim]System: git {git_state},"
+                        f" {sys_h.disk_free_gb:.1f}GB free[/dim]"
+                    )
 
             # Evidence
-            if result.evidence:
+            if result.evidence and verbose:
                 console.print(
                     Panel("[bold]Evidence[/bold]", style="cyan")
                 )
@@ -915,23 +949,29 @@ def troubleshoot(
             if result.recovery_plan is not None:
                 plan = result.recovery_plan
                 console.print()
-                console.print(
-                    Panel("[bold]Recovery Plan[/bold]", style="cyan")
-                )
-                for i, step in enumerate(plan.steps, 1):
-                    risk_color = {
-                        "safe": "green",
-                        "moderate": "yellow",
-                        "destructive": "red",
-                    }.get(step.risk, "white")
+                if verbose:
                     console.print(
-                        f"  {i}. [{risk_color}][{step.risk}][/{risk_color}]"
-                        f" {step.description}"
+                        Panel("[bold]Recovery Plan[/bold]", style="cyan")
                     )
-                    console.print(f"     [dim]$ {step.command}[/dim]")
-                if plan.prevention:
+                    for i, step in enumerate(plan.steps, 1):
+                        risk_color = {
+                            "safe": "green",
+                            "moderate": "yellow",
+                            "destructive": "red",
+                        }.get(step.risk, "white")
+                        console.print(
+                            f"  {i}. [{risk_color}][{step.risk}][/{risk_color}]"
+                            f" {step.description}"
+                        )
+                        console.print(f"     [dim]$ {step.command}[/dim]")
+                    if plan.prevention:
+                        console.print(
+                            f"\n  [dim]Prevention: {plan.prevention}[/dim]"
+                        )
+                else:
                     console.print(
-                        f"\n  [dim]Prevention: {plan.prevention}[/dim]"
+                        f"  [dim]Recovery: {len(plan.steps)} steps available"
+                        " (use --verbose)[/dim]"
                     )
 
             output_content = troubleshooter.format_result(result, "text")
@@ -950,5 +990,7 @@ def troubleshoot(
         raise
     except Exception as e:
         console.print(f"\n[red]Error:[/red] {e}")
+        if verbose:
+            console.print_exception()
         logger.exception("Troubleshoot command failed")
         raise SystemExit(1) from e

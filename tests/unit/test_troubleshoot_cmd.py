@@ -1618,7 +1618,7 @@ class TestTroubleshootCommandDeep:
 
     def test_format_result_text_with_zerg_health(self) -> None:
         """Test format_result text includes ZERG health section."""
-        troubleshooter = TroubleshootCommand()
+        troubleshooter = TroubleshootCommand(TroubleshootConfig(verbose=True))
         result = DiagnosticResult(
             symptom="Error",
             hypotheses=[],
@@ -1638,7 +1638,7 @@ class TestTroubleshootCommandDeep:
 
     def test_format_result_text_with_system_health(self) -> None:
         """Test format_result text includes system health section."""
-        troubleshooter = TroubleshootCommand()
+        troubleshooter = TroubleshootCommand(TroubleshootConfig(verbose=True))
         result = DiagnosticResult(
             symptom="Error",
             hypotheses=[],
@@ -1657,7 +1657,7 @@ class TestTroubleshootCommandDeep:
 
     def test_format_result_text_with_log_patterns(self) -> None:
         """Test format_result text includes log patterns section."""
-        troubleshooter = TroubleshootCommand()
+        troubleshooter = TroubleshootCommand(TroubleshootConfig(verbose=True))
         result = DiagnosticResult(
             symptom="Error",
             hypotheses=[],
@@ -1679,7 +1679,7 @@ class TestTroubleshootCommandDeep:
 
     def test_format_result_text_with_evidence(self) -> None:
         """Test format_result text includes evidence section."""
-        troubleshooter = TroubleshootCommand()
+        troubleshooter = TroubleshootCommand(TroubleshootConfig(verbose=True))
         result = DiagnosticResult(
             symptom="Error",
             hypotheses=[],
@@ -1693,7 +1693,7 @@ class TestTroubleshootCommandDeep:
 
     def test_format_result_text_with_recovery_plan(self) -> None:
         """Test format_result text includes recovery plan section."""
-        troubleshooter = TroubleshootCommand()
+        troubleshooter = TroubleshootCommand(TroubleshootConfig(verbose=True))
         result = DiagnosticResult(
             symptom="Error",
             hypotheses=[],
