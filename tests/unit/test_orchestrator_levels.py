@@ -246,8 +246,9 @@ class TestLevelCompletion:
 class TestMergeFailure:
     """Tests for merge failure handling."""
 
+    @patch("time.sleep")
     def test_merge_conflict_pauses_execution(
-        self, mock_orchestrator_deps, tmp_path: Path, monkeypatch
+        self, mock_sleep, mock_orchestrator_deps, tmp_path: Path, monkeypatch
     ) -> None:
         """Test merge conflict pauses execution."""
         monkeypatch.chdir(tmp_path)
@@ -269,8 +270,9 @@ class TestMergeFailure:
             1, LevelMergeStatus.CONFLICT, details={"error": "Merge conflict in src/auth.py"}
         )
 
+    @patch("time.sleep")
     def test_merge_failure_pauses_orchestration(
-        self, mock_orchestrator_deps, tmp_path: Path, monkeypatch
+        self, mock_sleep, mock_orchestrator_deps, tmp_path: Path, monkeypatch
     ) -> None:
         """Test non-conflict merge failure pauses orchestration (BF-007: recoverable error).
 

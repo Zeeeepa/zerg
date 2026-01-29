@@ -24,7 +24,8 @@ def mock_orchestrator_deps():
          patch("zerg.orchestrator.ContainerManager") as container_mock, \
          patch("zerg.orchestrator.PortAllocator") as ports_mock, \
          patch("zerg.orchestrator.MergeCoordinator") as merge_mock, \
-         patch("zerg.orchestrator.SubprocessLauncher") as launcher_mock:
+         patch("zerg.orchestrator.SubprocessLauncher") as launcher_mock, \
+         patch("time.sleep"):
 
         state = MagicMock()
         state.load.return_value = {}

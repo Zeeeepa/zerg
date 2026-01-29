@@ -604,8 +604,9 @@ class TestLevelCompleteHandler:
         # Should not raise
         orch._on_level_complete_handler(1)
 
+    @patch("time.sleep")
     def test_level_complete_merge_conflict_pauses(
-        self, mock_orchestrator_deps, tmp_path: Path, monkeypatch
+        self, mock_sleep, mock_orchestrator_deps, tmp_path: Path, monkeypatch
     ) -> None:
         """Test level completion pauses on merge conflict."""
         monkeypatch.chdir(tmp_path)
@@ -627,8 +628,9 @@ class TestLevelCompleteHandler:
             1, LevelMergeStatus.CONFLICT, details={"error": "CONFLICT in src/file.py"}
         )
 
+    @patch("time.sleep")
     def test_level_complete_merge_other_failure_pauses(
-        self, mock_orchestrator_deps, tmp_path: Path, monkeypatch
+        self, mock_sleep, mock_orchestrator_deps, tmp_path: Path, monkeypatch
     ) -> None:
         """Test level completion pauses on non-conflict merge failure.
 

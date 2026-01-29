@@ -301,6 +301,7 @@ class TestExponentialBackoffBetweenRetries:
 class TestMaxRetriesReachedPausesOrchestrator:
     """Test that max retries reached pauses orchestrator."""
 
+    @patch("zerg.orchestrator.time.sleep")
     @patch("zerg.orchestrator.MergeCoordinator")
     @patch("zerg.orchestrator.StateManager")
     @patch("zerg.orchestrator.ZergConfig")
@@ -309,6 +310,7 @@ class TestMaxRetriesReachedPausesOrchestrator:
         mock_config_cls,
         mock_state_cls,
         mock_merger_cls,
+        mock_sleep,
     ):
         """After max retries, orchestrator should set paused state."""
         mock_config = MagicMock()
@@ -343,16 +345,15 @@ class TestMaxRetriesReachedPausesOrchestrator:
                         with patch("zerg.orchestrator.LevelController"):
                             with patch("zerg.orchestrator.TaskParser"):
                                 with patch("zerg.orchestrator.TaskSyncBridge"):
-                                    with patch("zerg.orchestrator.time.sleep"):
-                                        with patch.object(
-                                            Orchestrator,
-                                            "_create_launcher",
-                                            return_value=MagicMock(),
-                                        ):
-                                            orch = Orchestrator(
-                                                feature="test-feature",
-                                                config=mock_config,
-                                            )
+                                    with patch.object(
+                                        Orchestrator,
+                                        "_create_launcher",
+                                        return_value=MagicMock(),
+                                    ):
+                                        orch = Orchestrator(
+                                            feature="test-feature",
+                                            config=mock_config,
+                                        )
 
         worker = WorkerState(
             worker_id=0,
@@ -371,6 +372,7 @@ class TestMaxRetriesReachedPausesOrchestrator:
         mock_state.set_paused.assert_called_with(True)
         mock_state.set_error.assert_called()
 
+    @patch("zerg.orchestrator.time.sleep")
     @patch("zerg.orchestrator.MergeCoordinator")
     @patch("zerg.orchestrator.StateManager")
     @patch("zerg.orchestrator.ZergConfig")
@@ -379,6 +381,7 @@ class TestMaxRetriesReachedPausesOrchestrator:
         mock_config_cls,
         mock_state_cls,
         mock_merger_cls,
+        mock_sleep,
     ):
         """Max retries should record recoverable_error event."""
         mock_config = MagicMock()
@@ -412,16 +415,15 @@ class TestMaxRetriesReachedPausesOrchestrator:
                         with patch("zerg.orchestrator.LevelController"):
                             with patch("zerg.orchestrator.TaskParser"):
                                 with patch("zerg.orchestrator.TaskSyncBridge"):
-                                    with patch("zerg.orchestrator.time.sleep"):
-                                        with patch.object(
-                                            Orchestrator,
-                                            "_create_launcher",
-                                            return_value=MagicMock(),
-                                        ):
-                                            orch = Orchestrator(
-                                                feature="test-feature",
-                                                config=mock_config,
-                                            )
+                                    with patch.object(
+                                        Orchestrator,
+                                        "_create_launcher",
+                                        return_value=MagicMock(),
+                                    ):
+                                        orch = Orchestrator(
+                                            feature="test-feature",
+                                            config=mock_config,
+                                        )
 
         worker = WorkerState(
             worker_id=0,
@@ -442,6 +444,7 @@ class TestMaxRetriesReachedPausesOrchestrator:
         ]
         assert len(event_calls) == 1
 
+    @patch("zerg.orchestrator.time.sleep")
     @patch("zerg.orchestrator.MergeCoordinator")
     @patch("zerg.orchestrator.StateManager")
     @patch("zerg.orchestrator.ZergConfig")
@@ -450,6 +453,7 @@ class TestMaxRetriesReachedPausesOrchestrator:
         mock_config_cls,
         mock_state_cls,
         mock_merger_cls,
+        mock_sleep,
     ):
         """Level merge status should be FAILED after max retries."""
         mock_config = MagicMock()
@@ -483,16 +487,15 @@ class TestMaxRetriesReachedPausesOrchestrator:
                         with patch("zerg.orchestrator.LevelController"):
                             with patch("zerg.orchestrator.TaskParser"):
                                 with patch("zerg.orchestrator.TaskSyncBridge"):
-                                    with patch("zerg.orchestrator.time.sleep"):
-                                        with patch.object(
-                                            Orchestrator,
-                                            "_create_launcher",
-                                            return_value=MagicMock(),
-                                        ):
-                                            orch = Orchestrator(
-                                                feature="test-feature",
-                                                config=mock_config,
-                                            )
+                                    with patch.object(
+                                        Orchestrator,
+                                        "_create_launcher",
+                                        return_value=MagicMock(),
+                                    ):
+                                        orch = Orchestrator(
+                                            feature="test-feature",
+                                            config=mock_config,
+                                        )
 
         worker = WorkerState(
             worker_id=0,
@@ -515,6 +518,7 @@ class TestMaxRetriesReachedPausesOrchestrator:
 class TestSuccessfulMergeAfterRetry:
     """Test successful merge after initial failures."""
 
+    @patch("zerg.orchestrator.time.sleep")
     @patch("zerg.orchestrator.MergeCoordinator")
     @patch("zerg.orchestrator.StateManager")
     @patch("zerg.orchestrator.ZergConfig")
@@ -523,6 +527,7 @@ class TestSuccessfulMergeAfterRetry:
         mock_config_cls,
         mock_state_cls,
         mock_merger_cls,
+        mock_sleep,
     ):
         """Merge should succeed after one retry."""
         mock_config = MagicMock()
@@ -570,16 +575,15 @@ class TestSuccessfulMergeAfterRetry:
                         with patch("zerg.orchestrator.LevelController"):
                             with patch("zerg.orchestrator.TaskParser"):
                                 with patch("zerg.orchestrator.TaskSyncBridge"):
-                                    with patch("zerg.orchestrator.time.sleep"):
-                                        with patch.object(
-                                            Orchestrator,
-                                            "_create_launcher",
-                                            return_value=MagicMock(),
-                                        ):
-                                            orch = Orchestrator(
-                                                feature="test-feature",
-                                                config=mock_config,
-                                            )
+                                    with patch.object(
+                                        Orchestrator,
+                                        "_create_launcher",
+                                        return_value=MagicMock(),
+                                    ):
+                                        orch = Orchestrator(
+                                            feature="test-feature",
+                                            config=mock_config,
+                                        )
 
         worker = WorkerState(
             worker_id=0,
@@ -601,6 +605,7 @@ class TestSuccessfulMergeAfterRetry:
             {"level": 1, "merge_commit": "abc123"},
         )
 
+    @patch("zerg.orchestrator.time.sleep")
     @patch("zerg.orchestrator.MergeCoordinator")
     @patch("zerg.orchestrator.StateManager")
     @patch("zerg.orchestrator.ZergConfig")
@@ -609,6 +614,7 @@ class TestSuccessfulMergeAfterRetry:
         mock_config_cls,
         mock_state_cls,
         mock_merger_cls,
+        mock_sleep,
     ):
         """Merge should succeed after multiple retries."""
         mock_config = MagicMock()
@@ -656,16 +662,15 @@ class TestSuccessfulMergeAfterRetry:
                         with patch("zerg.orchestrator.LevelController"):
                             with patch("zerg.orchestrator.TaskParser"):
                                 with patch("zerg.orchestrator.TaskSyncBridge"):
-                                    with patch("zerg.orchestrator.time.sleep"):
-                                        with patch.object(
-                                            Orchestrator,
-                                            "_create_launcher",
-                                            return_value=MagicMock(),
-                                        ):
-                                            orch = Orchestrator(
-                                                feature="test-feature",
-                                                config=mock_config,
-                                            )
+                                    with patch.object(
+                                        Orchestrator,
+                                        "_create_launcher",
+                                        return_value=MagicMock(),
+                                    ):
+                                        orch = Orchestrator(
+                                            feature="test-feature",
+                                            config=mock_config,
+                                        )
 
         worker = WorkerState(
             worker_id=0,
@@ -688,6 +693,7 @@ class TestSuccessfulMergeAfterRetry:
             1, LevelMergeStatus.COMPLETE
         )
 
+    @patch("zerg.orchestrator.time.sleep")
     @patch("zerg.orchestrator.MergeCoordinator")
     @patch("zerg.orchestrator.StateManager")
     @patch("zerg.orchestrator.ZergConfig")
@@ -696,6 +702,7 @@ class TestSuccessfulMergeAfterRetry:
         mock_config_cls,
         mock_state_cls,
         mock_merger_cls,
+        mock_sleep,
     ):
         """Should record merge_retry event on each retry."""
         mock_config = MagicMock()
@@ -743,16 +750,15 @@ class TestSuccessfulMergeAfterRetry:
                         with patch("zerg.orchestrator.LevelController"):
                             with patch("zerg.orchestrator.TaskParser"):
                                 with patch("zerg.orchestrator.TaskSyncBridge"):
-                                    with patch("zerg.orchestrator.time.sleep"):
-                                        with patch.object(
-                                            Orchestrator,
-                                            "_create_launcher",
-                                            return_value=MagicMock(),
-                                        ):
-                                            orch = Orchestrator(
-                                                feature="test-feature",
-                                                config=mock_config,
-                                            )
+                                    with patch.object(
+                                        Orchestrator,
+                                        "_create_launcher",
+                                        return_value=MagicMock(),
+                                    ):
+                                        orch = Orchestrator(
+                                            feature="test-feature",
+                                            config=mock_config,
+                                        )
 
         worker = WorkerState(
             worker_id=0,
@@ -854,6 +860,7 @@ class TestTimeoutConfigurationFromConfig:
             {"level": 1, "merge_commit": "abc123"},
         )
 
+    @patch("zerg.orchestrator.time.sleep")
     @patch("zerg.orchestrator.MergeCoordinator")
     @patch("zerg.orchestrator.StateManager")
     @patch("zerg.orchestrator.ZergConfig")
@@ -862,6 +869,7 @@ class TestTimeoutConfigurationFromConfig:
         mock_config_cls,
         mock_state_cls,
         mock_merger_cls,
+        mock_sleep,
     ):
         """Should use default max_retries of 3 when not configured."""
         mock_config = MagicMock()
@@ -902,16 +910,15 @@ class TestTimeoutConfigurationFromConfig:
                         with patch("zerg.orchestrator.LevelController"):
                             with patch("zerg.orchestrator.TaskParser"):
                                 with patch("zerg.orchestrator.TaskSyncBridge"):
-                                    with patch("zerg.orchestrator.time.sleep"):
-                                        with patch.object(
-                                            Orchestrator,
-                                            "_create_launcher",
-                                            return_value=MagicMock(),
-                                        ):
-                                            orch = Orchestrator(
-                                                feature="test-feature",
-                                                config=mock_config,
-                                            )
+                                    with patch.object(
+                                        Orchestrator,
+                                        "_create_launcher",
+                                        return_value=MagicMock(),
+                                    ):
+                                        orch = Orchestrator(
+                                            feature="test-feature",
+                                            config=mock_config,
+                                        )
 
         worker = WorkerState(
             worker_id=0,
@@ -995,6 +1002,7 @@ class TestTimeoutConfigurationFromConfig:
         assert mock_config.merge_timeout_seconds == 1200
         assert mock_config.merge_max_retries == 5
 
+    @patch("zerg.orchestrator.time.sleep")
     @patch("zerg.orchestrator.MergeCoordinator")
     @patch("zerg.orchestrator.StateManager")
     @patch("zerg.orchestrator.ZergConfig")
@@ -1003,6 +1011,7 @@ class TestTimeoutConfigurationFromConfig:
         mock_config_cls,
         mock_state_cls,
         mock_merger_cls,
+        mock_sleep,
     ):
         """Should use custom max_retries value when configured."""
         mock_config = MagicMock()
@@ -1042,16 +1051,15 @@ class TestTimeoutConfigurationFromConfig:
                         with patch("zerg.orchestrator.LevelController"):
                             with patch("zerg.orchestrator.TaskParser"):
                                 with patch("zerg.orchestrator.TaskSyncBridge"):
-                                    with patch("zerg.orchestrator.time.sleep"):
-                                        with patch.object(
-                                            Orchestrator,
-                                            "_create_launcher",
-                                            return_value=MagicMock(),
-                                        ):
-                                            orch = Orchestrator(
-                                                feature="test-feature",
-                                                config=mock_config,
-                                            )
+                                    with patch.object(
+                                        Orchestrator,
+                                        "_create_launcher",
+                                        return_value=MagicMock(),
+                                    ):
+                                        orch = Orchestrator(
+                                            feature="test-feature",
+                                            config=mock_config,
+                                        )
 
         worker = WorkerState(
             worker_id=0,

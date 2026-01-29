@@ -271,8 +271,9 @@ class TestOrchestratorWorkerCrashRecovery:
 class TestOrchestratorMergeFailurePause:
     """Test orchestrator pause behavior on merge failures."""
 
+    @patch("time.sleep")
     def test_merge_failure_pauses_orchestrator(
-        self, test_fixture: OrchestratorTestFixture
+        self, mock_sleep: MagicMock, test_fixture: OrchestratorTestFixture
     ) -> None:
         """Merge failure should pause orchestrator execution."""
         with patch("zerg.orchestrator.StateManager") as state_cls, \
@@ -326,8 +327,9 @@ class TestOrchestratorMergeFailurePause:
             state_mock.set_paused.assert_called_with(True)
             assert orch._paused is True
 
+    @patch("time.sleep")
     def test_merge_conflict_pauses_for_intervention(
-        self, test_fixture: OrchestratorTestFixture
+        self, mock_sleep: MagicMock, test_fixture: OrchestratorTestFixture
     ) -> None:
         """Merge conflict should pause for manual intervention."""
         with patch("zerg.orchestrator.StateManager") as state_cls, \
@@ -541,8 +543,9 @@ class TestOrchestratorLevelAdvancement:
                 1, LevelMergeStatus.COMPLETE
             )
 
+    @patch("time.sleep")
     def test_retry_then_advance_on_success(
-        self, test_fixture: OrchestratorTestFixture
+        self, mock_sleep: MagicMock, test_fixture: OrchestratorTestFixture
     ) -> None:
         """After retry, level should advance when merge succeeds."""
         with patch("zerg.orchestrator.StateManager") as state_cls, \
@@ -844,8 +847,9 @@ class TestOrchestratorIntegrationWithMocks:
             assert merge_result2.success
             assert merge_result2.merge_commit is not None
 
+    @patch("time.sleep")
     def test_pause_resume_retry_cycle(
-        self, test_fixture: OrchestratorTestFixture
+        self, mock_sleep: MagicMock, test_fixture: OrchestratorTestFixture
     ) -> None:
         """Test pause -> resume -> retry cycle with mocks."""
         with patch("zerg.orchestrator.StateManager") as state_cls, \
@@ -931,8 +935,9 @@ class TestRecoverableErrorState:
                 "recoverable_error", {"error": "Test recoverable error"}
             )
 
+    @patch("time.sleep")
     def test_merge_failure_sets_recoverable_error(
-        self, test_fixture: OrchestratorTestFixture
+        self, mock_sleep: MagicMock, test_fixture: OrchestratorTestFixture
     ) -> None:
         """Non-conflict merge failure should set recoverable error state."""
         with patch("zerg.orchestrator.StateManager") as state_cls, \
