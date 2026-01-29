@@ -10,7 +10,14 @@ from typing import Any
 
 from zerg.assign import WorkerAssignment
 from zerg.config import ZergConfig
-from zerg.constants import LevelMergeStatus, TaskStatus, WorkerStatus
+from zerg.constants import (
+    LOGS_TASKS_DIR,
+    LOGS_WORKERS_DIR,
+    LevelMergeStatus,
+    LogEvent,
+    TaskStatus,
+    WorkerStatus,
+)
 from zerg.containers import ContainerManager
 from zerg.gates import GateRunner
 from zerg.launcher import (
@@ -21,7 +28,8 @@ from zerg.launcher import (
     WorkerLauncher,
 )
 from zerg.levels import LevelController
-from zerg.logging import get_logger
+from zerg.log_writer import StructuredLogWriter
+from zerg.logging import get_logger, setup_structured_logging
 from zerg.merge import MergeCoordinator, MergeFlowResult
 from zerg.metrics import MetricsCollector, duration_ms
 from zerg.parser import TaskParser
@@ -84,6 +92,22 @@ class Orchestrator:
                 self._cleanup_orphan_containers()
         except TypeError:
             pass  # Mocked launcher in tests
+
+        # Set up structured logging for orchestrator
+        self._structured_writer: StructuredLogWriter | None = None
+        try:
+            log_dir = Path(self.config.logging.directory)
+            (self.repo_path / LOGS_WORKERS_DIR).mkdir(parents=True, exist_ok=True)
+            (self.repo_path / LOGS_TASKS_DIR).mkdir(parents=True, exist_ok=True)
+            self._structured_writer = setup_structured_logging(
+                log_dir=self.repo_path / log_dir,
+                worker_id="orchestrator",
+                feature=feature,
+                level=self.config.logging.level,
+                max_size_mb=self.config.logging.max_log_size_mb,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to set up structured orchestrator logging: {e}")
 
         # Runtime state
         self._running = False
@@ -406,6 +430,12 @@ class Orchestrator:
         self.state.set_level_status(level, "running")
         self.state.append_event("level_started", {"level": level, "tasks": len(task_ids)})
 
+        if self._structured_writer:
+            self._structured_writer.emit(
+                "info", f"Level {level} started with {len(task_ids)} tasks",
+                event=LogEvent.LEVEL_STARTED, data={"level": level, "tasks": len(task_ids)},
+            )
+
         # Create Claude Tasks for this level
         level_tasks = [self.parser.get_task(tid) for tid in task_ids]
         level_tasks = [t for t in level_tasks if t is not None]
@@ -475,6 +505,17 @@ class Orchestrator:
                 "merge_commit": merge_result.merge_commit,
             })
 
+            if self._structured_writer:
+                self._structured_writer.emit(
+                    "info", f"Level {level} merge complete",
+                    event=LogEvent.MERGE_COMPLETE,
+                    data={"level": level, "merge_commit": merge_result.merge_commit},
+                )
+                self._structured_writer.emit(
+                    "info", f"Level {level} complete",
+                    event=LogEvent.LEVEL_COMPLETE, data={"level": level},
+                )
+
             # Compute and store metrics
             try:
                 collector = MetricsCollector(self.state)
@@ -540,6 +581,11 @@ class Orchestrator:
             MergeFlowResult with outcome
         """
         logger.info(f"Starting merge for level {level}")
+        if self._structured_writer:
+            self._structured_writer.emit(
+                "info", f"Merge started for level {level}",
+                event=LogEvent.MERGE_STARTED, data={"level": level},
+            )
 
         # Collect worker branches
         worker_branches = []

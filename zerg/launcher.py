@@ -13,7 +13,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from zerg.constants import WorkerStatus
+from zerg.constants import LOGS_TASKS_DIR, LOGS_WORKERS_DIR, WorkerStatus
 from zerg.logging import get_logger
 
 logger = get_logger("launcher")
@@ -347,6 +347,7 @@ class SubprocessLauncher(WorkerLauncher):
             # Use current directory as main repo path (workers run in worktrees)
             repo_path = Path.cwd().resolve()
             worker_env = os.environ.copy()
+            log_dir = repo_path / LOGS_WORKERS_DIR.rsplit("/", 1)[0]  # .zerg/logs
             worker_env.update({
                 "ZERG_WORKER_ID": str(worker_id),
                 "ZERG_FEATURE": feature,
@@ -355,7 +356,12 @@ class SubprocessLauncher(WorkerLauncher):
                 "ZERG_SPEC_DIR": str(worktree_path / ".gsd" / "specs" / feature),
                 "ZERG_STATE_DIR": str(repo_path / ".zerg" / "state"),
                 "ZERG_REPO_PATH": str(repo_path),
+                "ZERG_LOG_DIR": str(log_dir),
             })
+
+            # Ensure structured log directories exist
+            (repo_path / LOGS_WORKERS_DIR).mkdir(parents=True, exist_ok=True)
+            (repo_path / LOGS_TASKS_DIR).mkdir(parents=True, exist_ok=True)
             # Validate additional env vars from config
             if self.config.env_vars:
                 validated_config_env = validate_env_vars(self.config.env_vars)

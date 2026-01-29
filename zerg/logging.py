@@ -1,12 +1,17 @@
 """ZERG structured logging with JSON output and worker context."""
 
+from __future__ import annotations
+
 import json
 import logging
 import sys
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from zerg.log_writer import StructuredLogWriter
 
 # Thread-local storage for worker context
 _worker_context: dict[str, Any] = {}
@@ -224,6 +229,92 @@ def get_task_logger(task_id: str, worker_id: int | None = None) -> LoggerAdapter
     if worker_id is not None:
         extra["worker_id"] = worker_id
     return LoggerAdapter(logger, extra)
+
+
+class StructuredFileHandler(logging.Handler):
+    """Logging handler that writes to a StructuredLogWriter.
+
+    Bridges Python's logging module with ZERG's structured JSONL logging.
+    """
+
+    def __init__(self, writer: StructuredLogWriter) -> None:
+        """Initialize handler.
+
+        Args:
+            writer: StructuredLogWriter to write to
+        """
+        super().__init__()
+        self._writer = writer
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Emit a log record to the structured writer.
+
+        Args:
+            record: Log record to emit
+        """
+        try:
+            level = record.levelname.lower()
+            message = self.format(record) if self.formatter else record.getMessage()
+            task_id = getattr(record, "task_id", None)
+            phase = getattr(record, "phase", None)
+            event = getattr(record, "event", None)
+            data = getattr(record, "data", None)
+            duration_ms = getattr(record, "duration_ms", None)
+
+            self._writer.emit(
+                level=level,
+                message=message,
+                task_id=task_id,
+                phase=phase,
+                event=event,
+                data=data,
+                duration_ms=duration_ms,
+            )
+        except Exception:
+            self.handleError(record)
+
+
+def setup_structured_logging(
+    log_dir: str | Path,
+    worker_id: int | str,
+    feature: str,
+    level: str = "info",
+    max_size_mb: int = 50,
+) -> StructuredLogWriter:
+    """Set up structured JSONL logging for a worker.
+
+    Creates a StructuredLogWriter and attaches a StructuredFileHandler
+    to the zerg root logger. Also sets worker context.
+
+    Args:
+        log_dir: Base log directory (.zerg/logs)
+        worker_id: Worker identifier (int or "orchestrator")
+        feature: Feature name
+        level: Log level
+        max_size_mb: Max file size before rotation
+
+    Returns:
+        The StructuredLogWriter instance (caller should close on shutdown)
+    """
+    from zerg.log_writer import StructuredLogWriter
+
+    writer = StructuredLogWriter(
+        log_dir=log_dir,
+        worker_id=worker_id,
+        feature=feature,
+        max_size_mb=max_size_mb,
+    )
+
+    log_level = getattr(logging, level.upper(), logging.INFO)
+
+    root_logger = logging.getLogger("zerg")
+    handler = StructuredFileHandler(writer)
+    handler.setLevel(log_level)
+    root_logger.addHandler(handler)
+
+    set_worker_context(worker_id=worker_id, feature=feature)
+
+    return writer
 
 
 # Initialize default logging on import

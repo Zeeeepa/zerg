@@ -10,10 +10,18 @@ from pathlib import Path
 from typing import Any
 
 from zerg.config import ZergConfig
-from zerg.constants import DEFAULT_CONTEXT_THRESHOLD, ExitCode, TaskStatus, WorkerStatus
+from zerg.constants import (
+    DEFAULT_CONTEXT_THRESHOLD,
+    ExitCode,
+    LogEvent,
+    LogPhase,
+    TaskStatus,
+    WorkerStatus,
+)
 from zerg.context_tracker import ContextTracker
 from zerg.git_ops import GitOps
-from zerg.logging import get_logger, set_worker_context
+from zerg.log_writer import StructuredLogWriter, TaskArtifactCapture
+from zerg.logging import get_logger, set_worker_context, setup_structured_logging
 from zerg.parser import TaskParser
 from zerg.spec_loader import SpecLoader
 from zerg.state import StateManager
@@ -151,6 +159,20 @@ class WorkerProtocol:
 
         # Set logging context
         set_worker_context(worker_id=self.worker_id, feature=self.feature)
+
+        # Set up structured JSONL logging
+        log_dir = os.environ.get("ZERG_LOG_DIR", ".zerg/logs")
+        self._structured_writer: StructuredLogWriter | None = None
+        try:
+            self._structured_writer = setup_structured_logging(
+                log_dir=log_dir,
+                worker_id=self.worker_id,
+                feature=self.feature,
+                level=self.config.logging.level,
+                max_size_mb=self.config.logging.max_log_size_mb,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to set up structured logging: {e}")
 
     def _update_worker_state(
         self,
@@ -342,9 +364,30 @@ class WorkerProtocol:
 
         task_start_time = time.time()
 
+        # Set up artifact capture
+        log_dir = os.environ.get("ZERG_LOG_DIR", ".zerg/logs")
+        artifact = TaskArtifactCapture(log_dir, task_id)
+
+        # Emit structured event
+        if self._structured_writer:
+            self._structured_writer.emit(
+                "info", f"Task {task_id} started",
+                task_id=task_id, phase=LogPhase.EXECUTE, event=LogEvent.TASK_STARTED,
+            )
+
+        success = False
         try:
             # Step 1: Invoke Claude Code to implement the task
             claude_result = self.invoke_claude_code(task)
+
+            # Capture Claude output
+            artifact.capture_claude_output(claude_result.stdout, claude_result.stderr)
+            artifact.write_event({
+                "event": "claude_invocation",
+                "success": claude_result.success,
+                "exit_code": claude_result.exit_code,
+                "duration_ms": claude_result.duration_ms,
+            })
 
             if not claude_result.success:
                 logger.error(f"Claude Code invocation failed for {task_id}")
@@ -354,15 +397,25 @@ class WorkerProtocol:
                     "exit_code": claude_result.exit_code,
                     "stderr": claude_result.stderr[:500],
                 })
+                if self._structured_writer:
+                    self._structured_writer.emit(
+                        "error", f"Task {task_id} failed: Claude invocation failed",
+                        task_id=task_id, phase=LogPhase.EXECUTE, event=LogEvent.TASK_FAILED,
+                    )
                 return False
 
             # Step 2: Run verification if specified
-            if task.get("verification") and not self.run_verification(task):
+            if task.get("verification") and not self.run_verification(task, artifact=artifact):
                 logger.error(f"Verification failed for {task_id}")
+                if self._structured_writer:
+                    self._structured_writer.emit(
+                        "error", f"Task {task_id} verification failed",
+                        task_id=task_id, phase=LogPhase.VERIFY, event=LogEvent.VERIFICATION_FAILED,
+                    )
                 return False
 
             # Step 3: Commit changes
-            if not self.commit_task_changes(task):
+            if not self.commit_task_changes(task, artifact=artifact):
                 logger.error(f"Commit failed for {task_id}")
                 return False
 
@@ -373,6 +426,15 @@ class WorkerProtocol:
             duration = int((time.time() - task_start_time) * 1000)
             self.state.record_task_duration(task_id, duration)
 
+            success = True
+
+            if self._structured_writer:
+                self._structured_writer.emit(
+                    "info", f"Task {task_id} completed",
+                    task_id=task_id, phase=LogPhase.EXECUTE, event=LogEvent.TASK_COMPLETED,
+                    duration_ms=duration,
+                )
+
             return True
 
         except Exception as e:
@@ -382,7 +444,15 @@ class WorkerProtocol:
                 "worker_id": self.worker_id,
                 "error": str(e),
             })
+            if self._structured_writer:
+                self._structured_writer.emit(
+                    "error", f"Task {task_id} exception: {e}",
+                    task_id=task_id, phase=LogPhase.EXECUTE, event=LogEvent.TASK_FAILED,
+                )
             return False
+        finally:
+            # Clean up artifacts based on retention policy
+            artifact.cleanup(success, self.config.logging)
 
     def invoke_claude_code(
         self,
@@ -547,6 +617,7 @@ class WorkerProtocol:
         self,
         task: Task,
         max_retries: int = 2,
+        artifact: TaskArtifactCapture | None = None,
     ) -> bool:
         """Run task verification with retry support.
 
@@ -582,6 +653,10 @@ class WorkerProtocol:
             cwd=self.worktree_path,
         )
 
+        # Capture verification output as artifact
+        if artifact:
+            artifact.capture_verification(result.stdout, result.stderr, result.exit_code)
+
         if result.success:
             logger.info(f"Verification passed for {task_id}")
             self.state.append_event("verification_passed", {
@@ -589,6 +664,12 @@ class WorkerProtocol:
                 "worker_id": self.worker_id,
                 "duration_ms": result.duration_ms,
             })
+            if self._structured_writer:
+                self._structured_writer.emit(
+                    "info", f"Verification passed for {task_id}",
+                    task_id=task_id, phase=LogPhase.VERIFY, event=LogEvent.VERIFICATION_PASSED,
+                    duration_ms=result.duration_ms,
+                )
             return True
         else:
             logger.error(f"Verification failed for {task_id}: {result.stderr}")
@@ -600,7 +681,7 @@ class WorkerProtocol:
             })
             return False
 
-    def commit_task_changes(self, task: Task) -> bool:
+    def commit_task_changes(self, task: Task, artifact: TaskArtifactCapture | None = None) -> bool:
         """Commit changes for a completed task.
 
         BF-009: Added HEAD verification after commit.
@@ -618,6 +699,26 @@ class WorkerProtocol:
             return True
 
         try:
+            # Capture git diff as artifact before commit
+            if artifact:
+                try:
+                    diff_result = subprocess.run(
+                        ["git", "diff", "--cached"],
+                        cwd=str(self.worktree_path),
+                        capture_output=True, text=True, timeout=30,
+                    )
+                    # Also get unstaged diff
+                    unstaged = subprocess.run(
+                        ["git", "diff"],
+                        cwd=str(self.worktree_path),
+                        capture_output=True, text=True, timeout=30,
+                    )
+                    diff_text = diff_result.stdout + unstaged.stdout
+                    if diff_text:
+                        artifact.capture_git_diff(diff_text)
+                except Exception:
+                    pass  # Best-effort artifact capture
+
             # BF-009: Record HEAD before commit for verification
             head_before = self.git.current_commit()
 

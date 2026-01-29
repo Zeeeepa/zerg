@@ -500,10 +500,11 @@ class TestWorkerProtocolStateWrites:
         """execute_task records duration_ms via state.record_task_duration."""
         task = {"id": "TASK-001", "title": "Test task"}
 
-        with patch.object(protocol, "invoke_claude_code") as mock_invoke:
-            mock_invoke.return_value = MagicMock(success=True)
-            with patch.object(protocol, "commit_task_changes", return_value=True):
-                result = protocol.execute_task(task)
+        with patch("zerg.worker_protocol.TaskArtifactCapture"):
+            with patch.object(protocol, "invoke_claude_code") as mock_invoke:
+                mock_invoke.return_value = MagicMock(success=True, stdout="", stderr="")
+                with patch.object(protocol, "commit_task_changes", return_value=True):
+                    result = protocol.execute_task(task)
 
         assert result is True
         mock_state_manager.record_task_duration.assert_called_once()

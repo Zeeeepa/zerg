@@ -349,7 +349,9 @@ class TestTaskExecution:
 
             protocol.execute_task(task)
 
-            verify_mock.assert_called_with(task)
+            verify_mock.assert_called_once()
+            call_args = verify_mock.call_args
+            assert call_args[0][0] == task  # first positional arg is the task
 
 
 class TestCompletionReporting:

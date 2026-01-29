@@ -1,5 +1,7 @@
 """ZERG cleanup command - remove ZERG artifacts."""
 
+import shutil
+import time
 from pathlib import Path
 
 import click
@@ -22,6 +24,10 @@ logger = get_logger("cleanup")
 @click.option("--keep-logs", is_flag=True, help="Preserve log files")
 @click.option("--keep-branches", is_flag=True, help="Preserve git branches")
 @click.option("--dry-run", is_flag=True, help="Show cleanup plan only")
+@click.option(
+    "--logs", "logs_only", is_flag=True,
+    help="Clean only structured logs (task artifacts and rotated worker logs)",
+)
 @click.pass_context
 def cleanup(
     ctx: click.Context,
@@ -30,6 +36,7 @@ def cleanup(
     keep_logs: bool,
     keep_branches: bool,
     dry_run: bool,
+    logs_only: bool,
 ) -> None:
     """Remove ZERG artifacts.
 
@@ -42,8 +49,16 @@ def cleanup(
         zerg cleanup --all
 
         zerg cleanup --all --keep-logs --dry-run
+
+        zerg cleanup --logs
     """
     try:
+        # Handle --logs mode (standalone log cleanup)
+        if logs_only:
+            config = ZergConfig.load()
+            cleanup_structured_logs(config, dry_run)
+            return
+
         # Validate arguments
         if not feature and not all_features:
             console.print("[red]Error:[/red] Specify --feature or --all")
@@ -323,3 +338,114 @@ def execute_cleanup(plan: dict, config: ZergConfig) -> None:
 
     if errors:
         console.print(f"\n[yellow]Completed with {len(errors)} error(s)[/yellow]")
+
+
+def cleanup_structured_logs(config: ZergConfig, dry_run: bool = False) -> None:
+    """Clean up structured log artifacts based on retention policy.
+
+    Prunes task artifact directories based on config.logging retention settings.
+    Rotates/removes old worker JSONL files based on retain_days.
+
+    Args:
+        config: ZergConfig with logging settings
+        dry_run: If True, only show what would be cleaned
+    """
+    console.print("\n[bold cyan]ZERG Log Cleanup[/bold cyan]\n")
+
+    log_dir = Path(config.logging.directory)
+    tasks_dir = log_dir / "tasks"
+    workers_dir = log_dir / "workers"
+    retain_days = config.logging.retain_days
+
+    cleaned_tasks = 0
+    cleaned_workers = 0
+    errors = []
+
+    # Clean task artifact directories
+    if tasks_dir.exists():
+        console.print("[bold]Task artifacts:[/bold]")
+        cutoff_time = time.time() - (retain_days * 86400)
+
+        for task_dir in sorted(tasks_dir.iterdir()):
+            if not task_dir.is_dir():
+                continue
+
+            # Check modification time
+            dir_mtime = task_dir.stat().st_mtime
+            if dir_mtime < cutoff_time:
+                if dry_run:
+                    console.print(f"  [dim]Would remove:[/dim] {task_dir.name}")
+                else:
+                    try:
+                        shutil.rmtree(task_dir)
+                        console.print(f"  [green]Removed:[/green] {task_dir.name}")
+                    except OSError as e:
+                        console.print(f"  [red]Error:[/red] {task_dir.name}: {e}")
+                        errors.append(str(e))
+                cleaned_tasks += 1
+
+        if cleaned_tasks == 0:
+            console.print("  [dim]No task artifacts to clean[/dim]")
+
+    # Clean/rotate worker JSONL files
+    if workers_dir.exists():
+        console.print("\n[bold]Worker JSONL files:[/bold]")
+        cutoff_time = time.time() - (retain_days * 86400)
+
+        for jsonl_file in sorted(workers_dir.glob("*.jsonl*")):
+            file_mtime = jsonl_file.stat().st_mtime
+
+            should_clean = False
+            reason = ""
+
+            if file_mtime < cutoff_time:
+                should_clean = True
+                reason = f"older than {retain_days} days"
+            elif jsonl_file.suffix == ".1":
+                # Rotated files older than retain_days
+                if file_mtime < cutoff_time:
+                    should_clean = True
+                    reason = "rotated file, expired"
+
+            if should_clean:
+                if dry_run:
+                    console.print(f"  [dim]Would remove:[/dim] {jsonl_file.name} ({reason})")
+                else:
+                    try:
+                        jsonl_file.unlink()
+                        console.print(f"  [green]Removed:[/green] {jsonl_file.name} ({reason})")
+                    except OSError as e:
+                        console.print(f"  [red]Error:[/red] {jsonl_file.name}: {e}")
+                        errors.append(str(e))
+                cleaned_workers += 1
+
+        if cleaned_workers == 0:
+            console.print("  [dim]No worker logs to clean[/dim]")
+
+    # Also clean orchestrator.jsonl if old
+    orchestrator_file = log_dir / "orchestrator.jsonl"
+    if orchestrator_file.exists():
+        cutoff_time = time.time() - (retain_days * 86400)
+        if orchestrator_file.stat().st_mtime < cutoff_time:
+            if dry_run:
+                console.print("\n  [dim]Would remove:[/dim] orchestrator.jsonl")
+            else:
+                try:
+                    orchestrator_file.unlink()
+                    console.print("\n  [green]Removed:[/green] orchestrator.jsonl")
+                except OSError as e:
+                    errors.append(str(e))
+
+    if dry_run:
+        console.print(
+            f"\n[dim]Dry run: {cleaned_tasks} task dirs, "
+            f"{cleaned_workers} worker files would be cleaned[/dim]"
+        )
+    else:
+        console.print(
+            f"\n[green]Log cleanup complete:[/green] "
+            f"{cleaned_tasks} task dirs, {cleaned_workers} worker files"
+        )
+
+    if errors:
+        console.print(f"[yellow]{len(errors)} error(s) during cleanup[/yellow]")

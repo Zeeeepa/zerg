@@ -9,10 +9,12 @@ import click
 from rich.console import Console
 from rich.text import Text
 
+from zerg.log_aggregator import LogAggregator
 from zerg.logging import get_logger
 
 console = Console()
 logger = get_logger("logs")
+
 
 # Log level colors
 LEVEL_COLORS = {
@@ -38,6 +40,23 @@ LEVEL_COLORS = {
     help="Log level filter",
 )
 @click.option("--json", "json_output", is_flag=True, help="Raw JSON output")
+@click.option("--aggregate", is_flag=True, help="Merge all worker JSONL logs by timestamp")
+@click.option("--task", "task_id", type=str, default=None, help="Filter to specific task ID")
+@click.option(
+    "--artifacts", "artifacts_task", type=str, default=None,
+    help="Show artifact file contents for a task",
+)
+@click.option(
+    "--phase", type=str, default=None,
+    help="Filter by execution phase (claim/execute/verify/commit/cleanup)",
+)
+@click.option(
+    "--event", type=str, default=None,
+    help="Filter by event type (task_started, task_completed, etc.)",
+)
+@click.option("--since", type=str, default=None, help="Only entries after this ISO8601 timestamp")
+@click.option("--until", type=str, default=None, help="Only entries before this ISO8601 timestamp")
+@click.option("--search", type=str, default=None, help="Text search in messages")
 @click.pass_context
 def logs(
     ctx: click.Context,
@@ -47,10 +66,19 @@ def logs(
     follow: bool,
     level: str,
     json_output: bool,
+    aggregate: bool,
+    task_id: str | None,
+    artifacts_task: str | None,
+    phase: str | None,
+    event: str | None,
+    since: str | None,
+    until: str | None,
+    search: str | None,
 ) -> None:
     """Stream worker logs.
 
     Shows logs from workers with optional filtering.
+    Use --aggregate for structured JSONL log aggregation across all workers.
 
     Examples:
 
@@ -61,6 +89,14 @@ def logs(
         zerg logs --follow --level debug
 
         zerg logs --tail 50 --feature user-auth
+
+        zerg logs --aggregate
+
+        zerg logs --task T1.1
+
+        zerg logs --artifacts T1.1
+
+        zerg logs --aggregate --phase verify --event verification_failed
     """
     try:
         # Auto-detect feature
@@ -71,6 +107,31 @@ def logs(
             console.print("[red]Error:[/red] No active feature found")
             console.print("Specify a feature with [cyan]--feature[/cyan]")
             raise SystemExit(1)
+
+        log_dir = Path(".zerg/logs")
+
+        # Handle --artifacts mode
+        if artifacts_task:
+            _show_task_artifacts(log_dir, artifacts_task)
+            return
+
+        # Handle --aggregate or structured query mode
+        if aggregate or task_id or phase or event or since or until or search:
+            _show_aggregated_logs(
+                log_dir=log_dir,
+                feature=feature,
+                worker_id=worker_id,
+                task_id=task_id,
+                level=level,
+                phase=phase,
+                event=event,
+                since=since,
+                until=until,
+                search=search,
+                tail=tail,
+                json_output=json_output,
+            )
+            return
 
         # Check if container mode — try docker logs first
         launcher_type = _get_launcher_type()
@@ -84,8 +145,7 @@ def logs(
                 console.print(container_output)
                 return
 
-        # Find log files
-        log_dir = Path(".zerg/logs")
+        # Find log files (legacy .log files)
         if not log_dir.exists():
             console.print("[yellow]No logs directory found[/yellow]")
             return
@@ -122,6 +182,89 @@ def logs(
     except Exception as e:
         console.print(f"\n[red]Error:[/red] {e}")
         raise SystemExit(1) from None
+
+
+def _show_aggregated_logs(
+    log_dir: Path,
+    feature: str,
+    worker_id: int | None = None,
+    task_id: str | None = None,
+    level: str = "info",
+    phase: str | None = None,
+    event: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    search: str | None = None,
+    tail: int = 100,
+    json_output: bool = False,
+) -> None:
+    """Show aggregated structured JSONL logs.
+
+    Uses LogAggregator to merge all worker JSONL files by timestamp.
+    """
+    aggregator = LogAggregator(log_dir)
+
+    entries = aggregator.query(
+        worker_id=worker_id,
+        task_id=task_id,
+        level=level if level != "info" else None,  # Don't filter by info (show all >= info)
+        phase=phase,
+        event=event,
+        since=since,
+        until=until,
+        search=search,
+        limit=tail,
+    )
+
+    if not entries:
+        console.print("[yellow]No structured log entries found[/yellow]")
+        console.print("[dim]Hint: Structured JSONL logs are in .zerg/logs/workers/[/dim]")
+        return
+
+    if not json_output:
+        console.print(f"[bold cyan]ZERG Aggregated Logs[/bold cyan] - {feature}\n")
+
+    for entry in entries:
+        if json_output:
+            console.print(json.dumps(entry), soft_wrap=True)
+        else:
+            console.print(format_log_entry(entry))
+
+
+def _show_task_artifacts(log_dir: Path, task_id: str) -> None:
+    """Show artifact file contents for a task.
+
+    Args:
+        log_dir: Log directory
+        task_id: Task identifier
+    """
+    aggregator = LogAggregator(log_dir)
+    artifacts = aggregator.get_task_artifacts(task_id)
+
+    if not artifacts:
+        console.print(f"[yellow]No artifacts found for task {task_id}[/yellow]")
+        return
+
+    console.print(f"[bold cyan]Artifacts for {task_id}[/bold cyan]\n")
+
+    for name, path in sorted(artifacts.items()):
+        console.print(f"[bold]--- {name} ---[/bold]")
+        try:
+            content = path.read_text()
+            if name.endswith(".jsonl"):
+                # Format JSONL entries
+                for line in content.strip().split("\n"):
+                    if line.strip():
+                        try:
+                            entry = json.loads(line)
+                            console.print(json.dumps(entry, indent=2))
+                        except json.JSONDecodeError:
+                            console.print(line)
+            else:
+                console.print(content)
+        except Exception as e:
+            console.print(f"[red]Error reading {name}: {e}[/red]")
+        console.print()
 
 
 def _get_launcher_type() -> str:
@@ -253,11 +396,13 @@ def format_log_entry(entry: dict) -> Text:
     """
     text = Text()
 
-    # Timestamp
-    ts = entry.get("timestamp", "")
+    # Timestamp - support both "timestamp" (legacy) and "ts" (JSONL) fields
+    ts = entry.get("ts", entry.get("timestamp", ""))
     if ts:
         # Show just time portion
-        if len(ts) >= 19:
+        if "T" in ts:
+            ts = ts.split("T")[1][:8]  # ISO8601 format
+        elif len(ts) >= 19:
             ts = ts[11:19]
         text.append(f"[{ts}] ", style="dim")
 
@@ -276,7 +421,7 @@ def format_log_entry(entry: dict) -> Text:
     text.append(message)
 
     # Extra fields
-    for key in ["task_id", "error"]:
+    for key in ["task_id", "phase", "event", "error"]:
         if key in entry and entry[key]:
             text.append(f" {key}={entry[key]}", style="dim")
 
@@ -328,7 +473,7 @@ def show_logs(
     # Output
     for entry in filtered[-tail:]:
         if json_output:
-            console.print(json.dumps(entry))
+            console.print(json.dumps(entry), soft_wrap=True)
         else:
             console.print(format_log_entry(entry))
 
@@ -379,7 +524,7 @@ def stream_logs(
 
                             if entry_priority >= level_priority:
                                 if json_output:
-                                    console.print(json.dumps(entry))
+                                    console.print(json.dumps(entry), soft_wrap=True)
                                 else:
                                     console.print(format_log_entry(entry))
 
@@ -387,3 +532,7 @@ def stream_logs(
                     logger.warning(f"Error reading {log_file}: {e}")
 
         time.sleep(0.5)
+
+
+# Alias for external import
+logs_command = logs

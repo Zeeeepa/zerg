@@ -108,6 +108,33 @@ LEVEL_NAMES = {
 # State file locations
 STATE_DIR = ".zerg/state"
 LOGS_DIR = ".zerg/logs"
+LOGS_WORKERS_DIR = ".zerg/logs/workers"
+LOGS_TASKS_DIR = ".zerg/logs/tasks"
 WORKTREES_DIR = ".zerg-worktrees"
 GSD_DIR = ".gsd"
 SPECS_DIR = ".gsd/specs"
+
+
+class LogPhase(Enum):
+    """Execution phases for structured logging."""
+
+    CLAIM = "claim"
+    EXECUTE = "execute"
+    VERIFY = "verify"
+    COMMIT = "commit"
+    CLEANUP = "cleanup"
+
+
+class LogEvent(Enum):
+    """Structured log event types."""
+
+    TASK_STARTED = "task_started"
+    TASK_COMPLETED = "task_completed"
+    TASK_FAILED = "task_failed"
+    VERIFICATION_PASSED = "verification_passed"
+    VERIFICATION_FAILED = "verification_failed"
+    ARTIFACT_CAPTURED = "artifact_captured"
+    LEVEL_STARTED = "level_started"
+    LEVEL_COMPLETE = "level_complete"
+    MERGE_STARTED = "merge_started"
+    MERGE_COMPLETE = "merge_complete"

@@ -71,6 +71,10 @@ class LoggingConfig(BaseModel):
     level: str = Field(default="info", pattern="^(debug|info|warn|error)$")
     directory: str = ".zerg/logs"
     retain_days: int = Field(default=7, ge=1, le=365)
+    ephemeral_retain_on_success: bool = False
+    ephemeral_retain_on_failure: bool = True
+    max_log_size_mb: int = Field(default=50, ge=1, le=1000)
+    structured_output: bool = True
 
 
 class SecurityConfig(BaseModel):
