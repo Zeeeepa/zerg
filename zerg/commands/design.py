@@ -97,6 +97,12 @@ def design(
                 raise SystemExit(1)
 
             validate_task_graph(task_graph_path)
+
+            task_data = _load_task_graph(task_graph_path)
+            manifest = _build_design_manifest(feature, task_data)
+            manifest_path = spec_dir / "design-tasks-manifest.json"
+            manifest_path.write_text(json.dumps(manifest, indent=2))
+            click.echo(f"  ✓ Created {manifest_path}")
             return
 
         # Update-backlog mode
@@ -112,6 +118,11 @@ def design(
                 feature=feature,
             )
             console.print(f"[green]✓[/green] Regenerated {backlog_path}")
+
+            manifest = _build_design_manifest(feature, task_data)
+            manifest_path = spec_dir / "design-tasks-manifest.json"
+            manifest_path.write_text(json.dumps(manifest, indent=2))
+            click.echo(f"  ✓ Created {manifest_path}")
             return
 
         # Generate design artifacts
@@ -138,6 +149,13 @@ def design(
             feature=feature,
         )
         console.print(f"  [green]✓[/green] Created {backlog_path}")
+
+        # Generate design tasks manifest
+        task_data = _load_task_graph(task_graph_path)
+        manifest = _build_design_manifest(feature, task_data)
+        manifest_path = spec_dir / "design-tasks-manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2))
+        click.echo(f"  ✓ Created {manifest_path}")
 
         # Show summary
         show_design_summary(spec_dir, feature)
