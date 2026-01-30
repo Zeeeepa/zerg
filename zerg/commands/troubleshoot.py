@@ -21,6 +21,11 @@ if TYPE_CHECKING:
     from zerg.diagnostics.recovery import RecoveryPlan
     from zerg.diagnostics.state_introspector import ZergHealthReport
     from zerg.diagnostics.system_diagnostics import SystemHealthReport
+    from zerg.diagnostics.types import (
+        ErrorFingerprint,
+        ScoredHypothesis,
+        TimelineEvent,
+    )
 
 console = Console()
 logger = get_logger("troubleshoot")
@@ -103,6 +108,13 @@ class DiagnosticResult:
     recovery_plan: RecoveryPlan | None = None
     evidence: list[str] = field(default_factory=list)
     log_patterns: list[LogPattern] = field(default_factory=list)
+    # Enhanced diagnostic fields
+    error_intel: ErrorFingerprint | None = None
+    timeline: list[TimelineEvent] = field(default_factory=list)
+    scored_hypotheses: list[ScoredHypothesis] = field(default_factory=list)
+    correlations: list[dict[str, Any]] = field(default_factory=list)
+    env_report: dict[str, Any] | None = None
+    fix_suggestions: list[str] = field(default_factory=list)
 
     @property
     def has_root_cause(self) -> bool:
@@ -132,6 +144,21 @@ class DiagnosticResult:
             result["evidence"] = self.evidence
         if self.log_patterns:
             result["log_patterns"] = [p.to_dict() for p in self.log_patterns]
+        # Enhanced fields
+        if self.error_intel is not None:
+            result["error_intel"] = self.error_intel.to_dict()
+        if self.timeline:
+            result["timeline"] = [t.to_dict() for t in self.timeline]
+        if self.scored_hypotheses:
+            result["scored_hypotheses"] = [
+                h.to_dict() for h in self.scored_hypotheses
+            ]
+        if self.correlations:
+            result["correlations"] = self.correlations
+        if self.env_report is not None:
+            result["env_report"] = self.env_report
+        if self.fix_suggestions:
+            result["fix_suggestions"] = self.fix_suggestions
         return result
 
 
@@ -372,6 +399,7 @@ class TroubleshootCommand:
         worker_id: int | None = None,
         deep: bool = False,
         auto_fix: bool = False,
+        env: bool = False,
     ) -> DiagnosticResult:
         """Run troubleshooting.
 
@@ -382,6 +410,7 @@ class TroubleshootCommand:
             worker_id: Specific worker ID to investigate
             deep: Run system-level diagnostics
             auto_fix: Generate and execute recovery plan
+            env: Run environment diagnostics
         """
         full_error = f"{error}\n{stack_trace}".strip()
 
@@ -423,6 +452,90 @@ class TroubleshootCommand:
         # Recovery planning
         if auto_fix or feature:
             result = self._plan_recovery(result)
+
+        # Enhanced: Error Intelligence
+        try:
+            from zerg.diagnostics.error_intel import ErrorIntelEngine
+
+            intel = ErrorIntelEngine()
+            result.error_intel = intel.analyze(full_error, stack_trace)
+            intel_evidence = intel.get_evidence(result.error_intel)
+            for ev in intel_evidence:
+                result.evidence.append(ev.description)
+        except Exception as e:
+            logger.warning(f"Error intelligence failed: {e}")
+
+        # Enhanced: Log Correlation (when feature provided)
+        if feature:
+            try:
+                from zerg.diagnostics.log_correlator import LogCorrelationEngine
+                from zerg.diagnostics.types import TimelineEvent as TEType
+
+                correlator = LogCorrelationEngine()
+                log_result = correlator.analyze(worker_id=worker_id)
+                timeline_raw = log_result.get("timeline", [])
+                result.timeline = [
+                    TEType(**e) if isinstance(e, dict) else e
+                    for e in timeline_raw
+                ]
+                result.correlations = log_result.get("correlations", [])
+            except Exception as e:
+                logger.warning(f"Log correlation failed: {e}")
+
+        # Enhanced: Hypothesis Engine
+        try:
+            from zerg.diagnostics.hypothesis_engine import HypothesisEngine
+            from zerg.diagnostics.types import Evidence as TypedEvidence
+
+            hypo_engine = HypothesisEngine()
+            if result.error_intel:
+                # Convert string evidence to typed Evidence for the engine
+                typed_evidence = [
+                    TypedEvidence(
+                        description=ev_str,
+                        source="diagnostic",
+                        confidence=0.5,
+                    )
+                    for ev_str in result.evidence
+                ]
+                result.scored_hypotheses = hypo_engine.analyze(
+                    result.error_intel, typed_evidence
+                )
+        except Exception as e:
+            logger.warning(f"Hypothesis engine failed: {e}")
+
+        # Enhanced: Code-Aware Fixes
+        try:
+            from zerg.diagnostics.code_fixer import CodeAwareFixer
+
+            fixer = CodeAwareFixer()
+            if result.error_intel:
+                from zerg.diagnostics.types import Evidence as TypedEvidence2
+
+                typed_evidence_fix = [
+                    TypedEvidence2(
+                        description=ev_str,
+                        source="diagnostic",
+                        confidence=0.5,
+                    )
+                    for ev_str in result.evidence
+                ]
+                fix_result = fixer.analyze(
+                    result.error_intel, typed_evidence_fix
+                )
+                result.fix_suggestions = fix_result.get("suggestions", [])
+        except Exception as e:
+            logger.warning(f"Code fixer failed: {e}")
+
+        # Enhanced: Environment Diagnostics
+        if deep or env:
+            try:
+                from zerg.diagnostics.env_diagnostics import EnvDiagnosticsEngine
+
+                env_engine = EnvDiagnosticsEngine()
+                result.env_report = env_engine.run_all()
+            except Exception as e:
+                logger.warning(f"Environment diagnostics failed: {e}")
 
         return result
 
@@ -652,6 +765,64 @@ class TroubleshootCommand:
                 lines.append(f"  - {ev}")
             lines.append("")
 
+        # Enhanced: Error Intelligence section
+        if result.error_intel is not None:
+            intel = result.error_intel
+            lines.append("Error Intelligence:")
+            lines.append(f"  Language: {intel.language}")
+            lines.append(f"  Type: {intel.error_type}")
+            if intel.file:
+                loc = f"{intel.file}:{intel.line}" if intel.line else intel.file
+                lines.append(f"  Location: {loc}")
+            if intel.hash:
+                lines.append(f"  Fingerprint: {intel.hash}")
+            lines.append("")
+
+        # Enhanced: Scored Hypotheses section
+        if result.scored_hypotheses:
+            lines.append("Scored Hypotheses (Bayesian):")
+            for i, sh in enumerate(result.scored_hypotheses, 1):
+                lines.append(
+                    f"  {i}. [{sh.posterior_probability:.0%}] "
+                    f"{sh.description}"
+                )
+                if sh.suggested_fix and self.config.verbose:
+                    lines.append(f"     Fix: {sh.suggested_fix}")
+            lines.append("")
+
+        # Enhanced: Fix Suggestions section
+        if result.fix_suggestions:
+            lines.append("Fix Suggestions:")
+            for i, fix in enumerate(result.fix_suggestions, 1):
+                lines.append(f"  {i}. {fix}")
+            lines.append("")
+
+        # Enhanced: Environment Report section
+        if result.env_report is not None and self.config.verbose:
+            lines.append("Environment Report:")
+            python_info = result.env_report.get("python", {})
+            venv_info = python_info.get("venv", {})
+            if venv_info:
+                active = "active" if venv_info.get("active") else "inactive"
+                lines.append(f"  Python venv: {active}")
+            resources = result.env_report.get("resources", {})
+            memory = resources.get("memory", {})
+            if memory:
+                lines.append(
+                    f"  Memory: {memory.get('available_gb', 0):.1f}GB available"
+                    f" / {memory.get('total_gb', 0):.1f}GB total"
+                )
+            disk = resources.get("disk", {})
+            if disk:
+                lines.append(
+                    f"  Disk: {disk.get('free_gb', 0):.1f}GB free"
+                    f" ({disk.get('used_percent', 0):.0f}% used)"
+                )
+            config_issues = result.env_report.get("config", [])
+            if config_issues:
+                lines.append(f"  Config issues: {len(config_issues)}")
+            lines.append("")
+
         lines.extend(
             [
                 f"Root Cause: {result.root_cause}",
@@ -696,6 +867,94 @@ def _load_stacktrace_file(filepath: str) -> str:
     return ""
 
 
+def _write_markdown_report(
+    result: DiagnosticResult,
+    troubleshooter: TroubleshootCommand,
+    report_path: str,
+) -> None:
+    """Write a full markdown report to the given path."""
+    lines: list[str] = [
+        "# ZERG Diagnostic Report",
+        "",
+        f"**Symptom:** {result.symptom}",
+        "",
+        f"**Root Cause:** {result.root_cause}",
+        "",
+        f"**Confidence:** {result.confidence:.0%}",
+        "",
+        f"**Recommendation:** {result.recommendation}",
+        "",
+    ]
+
+    if result.parsed_error and result.parsed_error.error_type:
+        lines.append("## Parsed Error")
+        lines.append(f"- **Type:** {result.parsed_error.error_type}")
+        if result.parsed_error.message:
+            lines.append(f"- **Message:** {result.parsed_error.message}")
+        if result.parsed_error.file:
+            lines.append(
+                f"- **Location:** {result.parsed_error.file}"
+                f":{result.parsed_error.line}"
+            )
+        lines.append("")
+
+    if result.hypotheses:
+        lines.append("## Hypotheses")
+        for i, h in enumerate(result.hypotheses, 1):
+            lines.append(f"{i}. **[{h.likelihood}]** {h.description}")
+            if h.test_command:
+                lines.append(f"   - Test: {h.test_command}")
+        lines.append("")
+
+    if result.error_intel is not None:
+        lines.append("## Error Intelligence")
+        lines.append(f"- **Language:** {result.error_intel.language}")
+        lines.append(f"- **Type:** {result.error_intel.error_type}")
+        if result.error_intel.file:
+            lines.append(
+                f"- **File:** {result.error_intel.file}"
+                f":{result.error_intel.line}"
+            )
+        if result.error_intel.hash:
+            lines.append(f"- **Fingerprint:** {result.error_intel.hash}")
+        lines.append("")
+
+    if result.scored_hypotheses:
+        lines.append("## Scored Hypotheses (Bayesian)")
+        for i, sh in enumerate(result.scored_hypotheses, 1):
+            lines.append(
+                f"{i}. **[{sh.posterior_probability:.0%}]** {sh.description}"
+            )
+            if sh.suggested_fix:
+                lines.append(f"   - Fix: {sh.suggested_fix}")
+        lines.append("")
+
+    if result.fix_suggestions:
+        lines.append("## Fix Suggestions")
+        for i, fix in enumerate(result.fix_suggestions, 1):
+            lines.append(f"{i}. {fix}")
+        lines.append("")
+
+    if result.evidence:
+        lines.append("## Evidence")
+        for ev in result.evidence:
+            lines.append(f"- {ev}")
+        lines.append("")
+
+    if result.env_report is not None:
+        lines.append("## Environment Report")
+        lines.append(f"```json\n{json.dumps(result.env_report, indent=2)}\n```")
+        lines.append("")
+
+    # Write text format at the end
+    lines.append("## Full Text Report")
+    lines.append("```")
+    lines.append(troubleshooter.format_result(result, "text"))
+    lines.append("```")
+
+    Path(report_path).write_text("\n".join(lines), encoding="utf-8")
+
+
 @click.command()
 @click.option("--error", "-e", help="Error message to analyze")
 @click.option("--stacktrace", "-s", help="Path to stack trace file")
@@ -706,6 +965,9 @@ def _load_stacktrace_file(filepath: str) -> str:
 @click.option("--worker", "-w", type=int, help="Specific worker ID to investigate")
 @click.option("--deep", is_flag=True, help="Run system-level diagnostics")
 @click.option("--auto-fix", is_flag=True, help="Generate and execute recovery plan")
+@click.option("--env", is_flag=True, help="Run environment diagnostics")
+@click.option("--interactive", "-i", is_flag=True, help="Interactive troubleshooting mode")
+@click.option("--report", "report_path", help="Write full markdown report to file")
 @click.pass_context
 def troubleshoot(
     ctx: click.Context,
@@ -718,6 +980,9 @@ def troubleshoot(
     worker: int | None,
     deep: bool,
     auto_fix: bool,
+    env: bool,
+    interactive: bool,
+    report_path: str | None,
 ) -> None:
     """Systematic debugging with root cause analysis.
 
@@ -732,6 +997,12 @@ def troubleshoot(
     6. System health checks (git, disk, docker, ports)
     7. Recovery planning with executable steps
 
+    Enhanced diagnostics:
+    8. Error intelligence with multi-language fingerprinting
+    9. Bayesian hypothesis scoring
+    10. Code-aware fix suggestions
+    11. Environment diagnostics (--env)
+
     Examples:
 
         zerg troubleshoot --error "ValueError: invalid literal"
@@ -743,9 +1014,19 @@ def troubleshoot(
         zerg troubleshoot --feature my-feature --auto-fix
 
         zerg troubleshoot --error "ImportError" --json
+
+        zerg troubleshoot --error "TypeError" --env
+
+        zerg troubleshoot --error "KeyError" --report diag.md
     """
     try:
         console.print("\n[bold cyan]ZERG Troubleshoot[/bold cyan]\n")
+
+        # Handle interactive mode
+        if interactive:
+            console.print(
+                "[yellow]Interactive mode coming soon[/yellow]"
+            )
 
         # Load stack trace from file if provided
         stack_trace_content = ""
@@ -798,6 +1079,7 @@ def troubleshoot(
             worker_id=worker,
             deep=deep,
             auto_fix=auto_fix,
+            env=env,
         )
 
         # Output
@@ -848,6 +1130,68 @@ def troubleshoot(
                     for i, h in enumerate(result.hypotheses, 1):
                         if h.test_command:
                             console.print(f"  {i}. {h.test_command}")
+                console.print()
+
+            # Error Intelligence
+            if result.error_intel is not None:
+                console.print(
+                    Panel("[bold]Error Intelligence[/bold]", style="cyan")
+                )
+                intel = result.error_intel
+                console.print(f"  Language: [bold]{intel.language}[/bold]")
+                console.print(f"  Type: [yellow]{intel.error_type}[/yellow]")
+                if intel.file:
+                    loc = (
+                        f"{intel.file}:{intel.line}"
+                        if intel.line
+                        else intel.file
+                    )
+                    console.print(f"  Location: [cyan]{loc}[/cyan]")
+                if intel.hash:
+                    console.print(f"  Fingerprint: [dim]{intel.hash}[/dim]")
+                console.print()
+
+            # Scored Hypotheses
+            if result.scored_hypotheses:
+                console.print(
+                    Panel(
+                        "[bold]Scored Hypotheses (Bayesian)[/bold]",
+                        style="cyan",
+                    )
+                )
+                sh_table = Table()
+                sh_table.add_column("#", style="dim")
+                sh_table.add_column("Probability")
+                sh_table.add_column("Hypothesis")
+
+                for i, sh in enumerate(result.scored_hypotheses, 1):
+                    prob = sh.posterior_probability
+                    prob_color = (
+                        "red" if prob >= 0.7
+                        else "yellow" if prob >= 0.4
+                        else "green"
+                    )
+                    sh_table.add_row(
+                        str(i),
+                        f"[{prob_color}]{prob:.0%}[/{prob_color}]",
+                        sh.description,
+                    )
+
+                console.print(sh_table)
+                console.print()
+
+            # Fix Suggestions
+            if result.fix_suggestions:
+                fix_lines = "\n".join(
+                    f"  {i}. {fix}"
+                    for i, fix in enumerate(result.fix_suggestions, 1)
+                )
+                console.print(
+                    Panel(
+                        f"[bold]Fix Suggestions[/bold]\n{fix_lines}",
+                        style="green",
+                    )
+                )
                 console.print()
 
             # ZERG health
@@ -915,6 +1259,39 @@ def troubleshoot(
                         f" {sys_h.disk_free_gb:.1f}GB free[/dim]"
                     )
 
+            # Environment Report
+            if result.env_report is not None and verbose:
+                console.print(
+                    Panel("[bold]Environment Report[/bold]", style="cyan")
+                )
+                python_info = result.env_report.get("python", {})
+                venv_info = python_info.get("venv", {})
+                if venv_info:
+                    active = "active" if venv_info.get("active") else "inactive"
+                    venv_color = "green" if venv_info.get("active") else "yellow"
+                    console.print(
+                        f"  Python venv: [{venv_color}]{active}[/{venv_color}]"
+                    )
+                resources = result.env_report.get("resources", {})
+                memory = resources.get("memory", {})
+                if memory:
+                    console.print(
+                        f"  Memory: {memory.get('available_gb', 0):.1f}GB available"
+                        f" / {memory.get('total_gb', 0):.1f}GB total"
+                    )
+                disk_info = resources.get("disk", {})
+                if disk_info:
+                    console.print(
+                        f"  Disk: {disk_info.get('free_gb', 0):.1f}GB free"
+                        f" ({disk_info.get('used_percent', 0):.0f}% used)"
+                    )
+                config_issues = result.env_report.get("config", [])
+                if config_issues:
+                    console.print(
+                        f"  [yellow]Config issues: {len(config_issues)}[/yellow]"
+                    )
+                console.print()
+
             # Evidence
             if result.evidence and verbose:
                 console.print(
@@ -980,6 +1357,13 @@ def troubleshoot(
         if output:
             Path(output).write_text(output_content, encoding="utf-8")
             console.print(f"\n[green]✓[/green] Report written to {output}")
+
+        # Write markdown report if requested
+        if report_path:
+            _write_markdown_report(result, troubleshooter, report_path)
+            console.print(
+                f"\n[green]✓[/green] Markdown report written to {report_path}"
+            )
 
         raise SystemExit(0)
 
