@@ -1,5 +1,6 @@
 """Port allocation for ZERG workers."""
 
+import asyncio
 import random
 import socket
 from dataclasses import dataclass, field
@@ -135,6 +136,50 @@ class PortAllocator:
         for port in ports:
             self.release(port)
         logger.info(f"Worker {worker_id}: released ports {ports}")
+
+    # --- Async methods ---
+
+    async def allocate_one_async(self) -> int:
+        """Allocate a single port asynchronously.
+
+        Returns:
+            Allocated port number
+        """
+        return await asyncio.to_thread(self.allocate_one)
+
+    async def allocate_many_async(self, count: int) -> list[int]:
+        """Allocate multiple ports asynchronously.
+
+        Uses asyncio.gather for parallel allocation.
+
+        Args:
+            count: Number of ports to allocate
+
+        Returns:
+            List of allocated port numbers
+        """
+        tasks = [asyncio.to_thread(self.allocate_one) for _ in range(count)]
+        return list(await asyncio.gather(*tasks))
+
+    async def allocate_for_worker_async(
+        self, worker_id: int, ports_per_worker: int = 1
+    ) -> list[int]:
+        """Allocate ports for a specific worker asynchronously.
+
+        Args:
+            worker_id: Worker ID (for logging)
+            ports_per_worker: Number of ports to allocate
+
+        Returns:
+            List of allocated ports
+        """
+        if ports_per_worker == 1:
+            port = await self.allocate_one_async()
+            ports = [port]
+        else:
+            ports = await self.allocate_many_async(ports_per_worker)
+        logger.info(f"Worker {worker_id}: allocated ports {ports} (async)")
+        return ports
 
     @property
     def available_count(self) -> int:

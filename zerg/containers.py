@@ -1,5 +1,6 @@
 """Container management for ZERG workers."""
 
+import asyncio
 import os
 import subprocess
 import time
@@ -437,6 +438,228 @@ class ContainerManager:
             Dictionary of worker_id to ContainerInfo
         """
         return self._containers.copy()
+
+    # --- Async methods ---
+
+    async def _run_docker_async(
+        self,
+        *args: str,
+        timeout: int = 60,
+    ) -> tuple[int, str, str]:
+        """Run a docker command asynchronously.
+
+        Args:
+            *args: Docker command arguments
+            timeout: Command timeout
+
+        Returns:
+            Tuple of (return_code, stdout, stderr)
+        """
+        cmd = ["docker", *args]
+        logger.debug(f"Running async: {' '.join(cmd)}")
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=timeout
+            )
+            return (
+                proc.returncode or 0,
+                stdout_bytes.decode(),
+                stderr_bytes.decode(),
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return 1, "", f"timeout after {timeout}s"
+
+    async def _run_compose_async(
+        self,
+        *args: str,
+        env: dict[str, str] | None = None,
+        timeout: int = 120,
+    ) -> tuple[int, str, str]:
+        """Run a docker-compose command asynchronously.
+
+        Args:
+            *args: Compose command arguments
+            env: Environment variables
+            timeout: Command timeout
+
+        Returns:
+            Tuple of (return_code, stdout, stderr)
+        """
+        cmd = ["docker", "compose", "-f", str(self.compose_file), *args]
+        logger.debug(f"Running async: {' '.join(cmd)}")
+
+        full_env = os.environ.copy()
+        if env:
+            full_env.update(env)
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=full_env,
+        )
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=timeout
+            )
+            return (
+                proc.returncode or 0,
+                stdout_bytes.decode(),
+                stderr_bytes.decode(),
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return 1, "", f"timeout after {timeout}s"
+
+    async def build_async(self, no_cache: bool = False) -> None:
+        """Build the worker image asynchronously.
+
+        Args:
+            no_cache: Build without cache
+        """
+        args = ["build"]
+        if no_cache:
+            args.append("--no-cache")
+
+        logger.info("Building worker image (async)...")
+        returncode, _, stderr = await self._run_compose_async(*args, timeout=300)
+        if returncode != 0:
+            raise ContainerError(
+                f"Compose build failed: {stderr.strip()}",
+                details={"exit_code": returncode},
+            )
+        logger.info("Worker image built")
+
+    async def stop_worker_async(
+        self,
+        worker_id: int,
+        timeout: int = 30,
+        force: bool = False,
+    ) -> None:
+        """Stop a worker container asynchronously.
+
+        Args:
+            worker_id: Worker identifier
+            timeout: Graceful stop timeout
+            force: Force kill
+        """
+        info = self._containers.get(worker_id)
+        if not info:
+            logger.warning(f"Worker {worker_id} not found")
+            return
+
+        container_name = info.name
+
+        if force:
+            await self._run_docker_async("kill", container_name)
+        else:
+            await self._run_docker_async("stop", "-t", str(timeout), container_name)
+
+        await self._run_docker_async("rm", "-f", container_name)
+        del self._containers[worker_id]
+
+        logger.info(f"Worker {worker_id} stopped (async)")
+
+    async def stop_all_async(self, force: bool = False) -> int:
+        """Stop all worker containers asynchronously.
+
+        Args:
+            force: Force kill
+
+        Returns:
+            Number of containers stopped
+        """
+        tasks = [
+            self.stop_worker_async(worker_id, force=force)
+            for worker_id in list(self._containers.keys())
+        ]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        count = len(tasks)
+
+        # Also stop any orphaned zerg containers
+        returncode, stdout, _ = await self._run_docker_async(
+            "ps", "-q", "-f", "name=zerg-worker-",
+        )
+        for container_id in stdout.strip().split("\n"):
+            if container_id:
+                await self._run_docker_async("rm", "-f", container_id)
+                count += 1
+
+        logger.info(f"Stopped {count} containers (async)")
+        return count
+
+    async def get_status_async(self, worker_id: int) -> WorkerStatus:
+        """Get the status of a worker container asynchronously.
+
+        Args:
+            worker_id: Worker identifier
+
+        Returns:
+            WorkerStatus
+        """
+        info = self._containers.get(worker_id)
+        if not info:
+            return WorkerStatus.STOPPED
+
+        returncode, stdout, _ = await self._run_docker_async(
+            "inspect", "-f", "{{.State.Status}}", info.container_id,
+        )
+        status = stdout.strip()
+
+        status_map = {
+            "running": WorkerStatus.RUNNING,
+            "paused": WorkerStatus.CHECKPOINTING,
+            "exited": WorkerStatus.STOPPED,
+            "dead": WorkerStatus.CRASHED,
+        }
+
+        return status_map.get(status, WorkerStatus.STOPPED)
+
+    async def exec_in_worker_async(
+        self,
+        worker_id: int,
+        command: str,
+        timeout: int = 60,
+        validate: bool = True,
+    ) -> tuple[int, str, str]:
+        """Execute a validated command in a worker container asynchronously.
+
+        Uses create_subprocess_exec with explicit argument list to avoid
+        shell injection. The command string is validated against the allowlist
+        before execution.
+
+        Args:
+            worker_id: Worker identifier
+            command: Command to execute (validated against ALLOWED_EXEC_COMMANDS)
+            timeout: Command timeout
+            validate: Whether to validate command against allowlist
+
+        Returns:
+            Tuple of (exit_code, stdout, stderr)
+        """
+        info = self._containers.get(worker_id)
+        if not info:
+            return -1, "", "Worker not found"
+
+        if validate:
+            is_valid, error = self._validate_exec_command(command)
+            if not is_valid:
+                logger.warning(f"Blocked container exec command: {error}")
+                return -1, "", f"Command validation failed: {error}"
+
+        return await self._run_docker_async(
+            "exec", info.container_id, "sh", "-c", command,
+            timeout=timeout,
+        )
 
     def cleanup_volumes(self, feature: str) -> None:
         """Clean up Docker volumes for a feature.
