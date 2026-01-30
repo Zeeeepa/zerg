@@ -269,7 +269,7 @@ class TestTaskClaiming:
             state_mock.return_value = state
 
             protocol = WorkerProtocol()
-            task = protocol.claim_next_task()
+            task = protocol.claim_next_task(max_wait=0.1)
 
             assert task is None
 

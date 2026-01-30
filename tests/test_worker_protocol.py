@@ -160,7 +160,7 @@ class TestWorkerProtocol:
         """Test claiming when no tasks available."""
         mock_state_manager.get_tasks_by_status.return_value = []
 
-        task = protocol.claim_next_task()
+        task = protocol.claim_next_task(max_wait=0.1)
 
         assert task is None
 
