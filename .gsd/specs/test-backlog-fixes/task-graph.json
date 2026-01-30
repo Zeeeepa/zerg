@@ -1,0 +1,140 @@
+{
+  "feature": "test-backlog-fixes",
+  "version": "2.0",
+  "generated": "2026-01-31T00:00:00Z",
+  "total_tasks": 5,
+  "estimated_duration_minutes": 20,
+  "max_parallelization": 4,
+
+  "tasks": [
+    {
+      "id": "TBF-L1-001",
+      "title": "Fix e2e harness setup_task_graph to accept dict or list",
+      "description": "In tests/e2e/harness.py, modify setup_task_graph() to accept both list[dict] (task list) and dict (full task graph with 'tasks' key). If given a dict with a 'tasks' key, extract the list. This fixes 7 test failures where the sample_e2e_task_graph fixture returns a dict but the method expects a list.\n\nChange line 112: accept Union[list[dict], dict] and add extraction logic at the top of the method. Do NOT change the fixture or the test files.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": [],
+        "modify": ["tests/e2e/harness.py"],
+        "read": ["tests/e2e/conftest.py"]
+      },
+      "acceptance_criteria": [
+        "setup_task_graph accepts both dict and list[dict]",
+        "All 5 test_full_pipeline tests pass",
+        "test_metrics_computed_after_level_completion passes",
+        "test_task_failure_blocks_level passes"
+      ],
+      "verification": {
+        "command": "python -m pytest tests/e2e/test_full_pipeline.py tests/integration/test_orchestrator_integration.py::TestMetricsCollectionThroughFailures::test_metrics_computed_after_level_completion tests/integration/test_rush_flow.py::TestRushFlowTaskFailure::test_task_failure_blocks_level -x -q --timeout=60",
+        "timeout_seconds": 120
+      }
+    },
+    {
+      "id": "TBF-L1-002",
+      "title": "Fix test_task_graph_respects_min_minutes regression",
+      "description": "In tests/unit/test_design_cmd.py, the test test_task_graph_respects_min_minutes passes min_minutes=10 to create_task_graph_template(), but that parameter was removed in PRF-L1-002.\n\nFix: Remove the min_minutes=10 kwarg from the call. The test should just verify that tasks have estimate_minutes fields without depending on the removed parameter. Keep the test name and structure, just update the call.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": [],
+        "modify": ["tests/unit/test_design_cmd.py"],
+        "read": []
+      },
+      "acceptance_criteria": [
+        "test_task_graph_respects_min_minutes passes",
+        "No reference to min_minutes parameter",
+        "ruff check passes"
+      ],
+      "verification": {
+        "command": "python -m pytest tests/unit/test_design_cmd.py::TestCreateTaskGraphTemplate::test_task_graph_respects_min_minutes -x -q",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "TBF-L1-003",
+      "title": "Fix claim_next_task poll timeout in tests",
+      "description": "Two tests call claim_next_task() which polls with time.sleep() for up to 120s. The 60s pytest timeout fires first.\n\n1. tests/test_worker_protocol.py::test_claim_next_task_none_available (line 155-165)\n   - The mock_state_manager.get_tasks_by_status returns [] (empty)\n   - Fix: Patch time.sleep to no-op AND pass max_wait=0.1 to claim_next_task() so it returns None quickly\n\n2. tests/integration/test_worker_protocol_extended.py::test_claim_returns_none_when_no_tasks (line 259-274)\n   - Same issue: state.get_tasks_by_status returns []\n   - Fix: Add patch for time.sleep and pass max_wait=0.1\n\nDo NOT modify production code (worker_protocol.py). Only modify the test files.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": [],
+        "modify": [
+          "tests/test_worker_protocol.py",
+          "tests/integration/test_worker_protocol_extended.py"
+        ],
+        "read": ["zerg/worker_protocol.py"]
+      },
+      "acceptance_criteria": [
+        "test_claim_next_task_none_available passes within 5s",
+        "test_claim_returns_none_when_no_tasks passes within 5s",
+        "No production code changes"
+      ],
+      "verification": {
+        "command": "python -m pytest tests/test_worker_protocol.py::TestWorkerProtocol::test_claim_next_task_none_available tests/integration/test_worker_protocol_extended.py::TestTaskClaiming::test_claim_returns_none_when_no_tasks -x -q --timeout=30",
+        "timeout_seconds": 60
+      }
+    },
+    {
+      "id": "TBF-L1-004",
+      "title": "Skip real execution e2e test",
+      "description": "tests/e2e/test_real_execution.py::test_real_pipeline_with_simple_task raises NotImplementedError('Real mode requires Claude CLI'). This is expected in environments without Claude CLI.\n\nAdd @pytest.mark.skip(reason='Requires Claude CLI - not available in standard test environments') to the test class TestRealExecution or just the test method.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": [],
+        "modify": ["tests/e2e/test_real_execution.py"],
+        "read": []
+      },
+      "acceptance_criteria": [
+        "test_real_pipeline_with_simple_task is skipped (not failed)",
+        "Skip reason is descriptive"
+      ],
+      "verification": {
+        "command": "python -m pytest tests/e2e/test_real_execution.py -v --timeout=30 2>&1 | grep -E 'SKIP|PASS|FAIL'",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "TBF-L2-001",
+      "title": "Full test suite verification with pytest-xdist",
+      "description": "Run the complete test suite with pytest-xdist to verify all 11 previously failing tests now pass (or are properly skipped). Command: python -m pytest tests/ -n auto --timeout=60 -q\n\nExpected: 0 failures (the 1 skipped real execution test is acceptable).",
+      "phase": "quality",
+      "level": 2,
+      "dependencies": ["TBF-L1-001", "TBF-L1-002", "TBF-L1-003", "TBF-L1-004"],
+      "files": {
+        "create": [],
+        "modify": [],
+        "read": []
+      },
+      "acceptance_criteria": [
+        "0 test failures",
+        "All previously failing tests pass or are properly skipped",
+        "ruff check passes on all modified files"
+      ],
+      "verification": {
+        "command": "python -m pytest tests/ -n auto --timeout=60 -q",
+        "timeout_seconds": 300
+      }
+    }
+  ],
+
+  "levels": {
+    "1": {
+      "name": "foundation",
+      "tasks": ["TBF-L1-001", "TBF-L1-002", "TBF-L1-003", "TBF-L1-004"],
+      "parallel": true,
+      "estimated_minutes": 10
+    },
+    "2": {
+      "name": "quality",
+      "tasks": ["TBF-L2-001"],
+      "parallel": false,
+      "estimated_minutes": 5,
+      "depends_on_levels": [1]
+    }
+  }
+}
