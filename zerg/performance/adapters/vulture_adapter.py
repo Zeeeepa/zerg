@@ -40,7 +40,14 @@ class VultureAdapter(BaseToolAdapter):
         """Run ``vulture --min-confidence 80`` and return findings."""
         try:
             result = subprocess.run(
-                ["vulture", project_path, "--min-confidence", "80"],
+                [
+                    "vulture",
+                    project_path,
+                    "--min-confidence",
+                    "80",
+                    "--exclude",
+                    "tests/,.zerg/tests/",
+                ],
                 capture_output=True,
                 text=True,
                 timeout=120,
