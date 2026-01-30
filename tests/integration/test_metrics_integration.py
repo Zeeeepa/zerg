@@ -172,11 +172,17 @@ class TestMetricsAccuracy:
         state = StateManager("test-percentiles", state_dir=state_dir)
         state.load()
 
-        # Add tasks with known durations
+        # Add tasks with known durations.
+        # set_task_status uses _atomic_update which reloads from disk,
+        # so we must set all statuses first, then add extra fields.
         durations = [10000, 20000, 30000, 40000, 50000]
+        for i in range(len(durations)):
+            state.set_task_status(f"T-{i:03d}", TaskStatus.COMPLETE, worker_id=0)
+
+        # Now reload and add level/duration metadata
+        state.load()
         for i, duration in enumerate(durations):
             task_id = f"T-{i:03d}"
-            state.set_task_status(task_id, TaskStatus.COMPLETE, worker_id=0)
             state._state["tasks"][task_id]["level"] = 1
             state._state["tasks"][task_id]["duration_ms"] = duration
 

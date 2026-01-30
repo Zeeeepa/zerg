@@ -305,7 +305,14 @@ def tmp_worktree(tmp_path: Path) -> Path:
     zerg_dir = repo / ".zerg"
     zerg_dir.mkdir()
     entry = zerg_dir / "worker_entry.sh"
-    entry.write_text("#!/usr/bin/env bash\ntouch /tmp/.zerg-alive\nexec sleep 300\n")
+    entry.write_text(
+        "#!/usr/bin/env bash\n"
+        "touch /tmp/.zerg-alive\n"
+        "# Create a script named worker_main so pgrep -f finds it\n"
+        "printf '#!/bin/sh\\nsleep 300\\n' > /tmp/worker_main\n"
+        "chmod +x /tmp/worker_main\n"
+        "exec /tmp/worker_main\n"
+    )
     entry.chmod(0o755)
 
     subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True, check=True)
