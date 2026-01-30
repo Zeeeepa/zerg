@@ -11,7 +11,7 @@ Deep diagnostic investigation for ZERG execution issues with error intelligence,
 - `--error <msg>` or `-e`: Specific error message to analyze
 - `--stacktrace <path>` or `-s`: Path to stack trace file
 - `--env`: Run comprehensive environment diagnostics (Python venv, packages, Docker, resources, config validation)
-- `--interactive` or `-i`: Interactive troubleshooting wizard mode (placeholder for guided step-by-step diagnosis)
+- `--interactive` or `-i`: Interactive debugging wizard mode (placeholder for guided step-by-step diagnosis)
 - `--report <path>`: Write full diagnostic markdown report to file at the specified path
 
 ## Pre-Flight
