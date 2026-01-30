@@ -652,7 +652,7 @@ class TestWorkerProtocolClaimTask:
         mock_state_cls.return_value = mock_state
 
         protocol = WorkerProtocol(worker_id=1, feature="test")
-        task = protocol.claim_next_task()
+        task = protocol.claim_next_task(max_wait=0)
 
         assert task is None
 
@@ -689,7 +689,7 @@ class TestWorkerProtocolClaimTask:
         mock_state_cls.return_value = mock_state
 
         protocol = WorkerProtocol(worker_id=1, feature="test")
-        task = protocol.claim_next_task()
+        task = protocol.claim_next_task(max_wait=0)
 
         assert task is None
 
@@ -2361,6 +2361,7 @@ class TestWorkerProtocolGetStatus:
 class TestWorkerProtocolStart:
     """Tests for start method (main execution loop)."""
 
+    @patch("zerg.worker_protocol.time")
     @patch("zerg.worker_protocol.sys.exit")
     @patch("zerg.worker_protocol.StateManager")
     @patch("zerg.worker_protocol.VerificationExecutor")
@@ -2377,8 +2378,18 @@ class TestWorkerProtocolStart:
         mock_verifier_cls,
         mock_state_cls,
         mock_exit,
+        mock_time,
     ) -> None:
         """Test start when no tasks available."""
+        # Make time.time() return values that quickly exceed max_wait
+        call_count = 0
+        def mock_time_fn():
+            nonlocal call_count
+            call_count += 1
+            return call_count * 200.0
+        mock_time.time.side_effect = mock_time_fn
+        mock_time.sleep = MagicMock()
+
         mock_config = MagicMock()
         mock_config.context_threshold = 0.70
         mock_config.plugins = MagicMock()
@@ -2403,6 +2414,7 @@ class TestWorkerProtocolStart:
 
         mock_exit.assert_called_with(ExitCode.SUCCESS)
 
+    @patch("zerg.worker_protocol.time")
     @patch("zerg.worker_protocol.sys.exit")
     @patch("zerg.worker_protocol.StateManager")
     @patch("zerg.worker_protocol.VerificationExecutor")
@@ -2419,8 +2431,18 @@ class TestWorkerProtocolStart:
         mock_verifier_cls,
         mock_state_cls,
         mock_exit,
+        mock_time,
     ) -> None:
         """Test start executes available tasks."""
+        # Make time.time() return values that quickly exceed max_wait
+        call_count = 0
+        def mock_time_fn():
+            nonlocal call_count
+            call_count += 1
+            return call_count * 200.0
+        mock_time.time.side_effect = mock_time_fn
+        mock_time.sleep = MagicMock()
+
         mock_config = MagicMock()
         mock_config.context_threshold = 0.70
         mock_config.plugins = MagicMock()
@@ -2457,6 +2479,7 @@ class TestWorkerProtocolStart:
         protocol.execute_task.assert_called_once()
         mock_exit.assert_called_with(ExitCode.SUCCESS)
 
+    @patch("zerg.worker_protocol.time")
     @patch("zerg.worker_protocol.sys.exit")
     @patch("zerg.worker_protocol.StateManager")
     @patch("zerg.worker_protocol.VerificationExecutor")
@@ -2473,8 +2496,18 @@ class TestWorkerProtocolStart:
         mock_verifier_cls,
         mock_state_cls,
         mock_exit,
+        mock_time,
     ) -> None:
         """Test start handles task execution failure and calls report_failed."""
+        # Make time.time() return values that quickly exceed max_wait
+        call_count = 0
+        def mock_time_fn():
+            nonlocal call_count
+            call_count += 1
+            return call_count * 200.0
+        mock_time.time.side_effect = mock_time_fn
+        mock_time.sleep = MagicMock()
+
         mock_config = MagicMock()
         mock_config.context_threshold = 0.70
         mock_config.plugins = MagicMock()
