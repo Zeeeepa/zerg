@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from zerg.commands.debug import DiagnosticResult
 from zerg.diagnostics.recovery import (
+    DESIGN_ESCALATION_TASK_THRESHOLD,
     RECOVERY_TEMPLATES,
     RecoveryPlan,
     RecoveryPlanner,
@@ -271,3 +272,107 @@ class TestRecoveryPlanner:
         )
         result = planner.execute_step(step)
         assert result["success"] is False
+
+
+class TestDesignEscalation:
+    """Tests for design escalation detection in RecoveryPlanner."""
+
+    def _make_result(
+        self, symptom: str = "Error", root_cause: str = "Unknown",
+        recommendation: str = "Fix it",
+    ) -> DiagnosticResult:
+        return DiagnosticResult(
+            symptom=symptom,
+            hypotheses=[],
+            root_cause=root_cause,
+            recommendation=recommendation,
+        )
+
+    def _make_health(
+        self,
+        feature: str = "test",
+        failed: list[dict] | None = None,
+        global_error: str | None = None,
+    ) -> ZergHealthReport:
+        return ZergHealthReport(
+            feature=feature,
+            state_exists=True,
+            total_tasks=10,
+            failed_tasks=failed or [],
+            global_error=global_error,
+        )
+
+    def test_needs_design_defaults_false(self) -> None:
+        """RecoveryPlan.needs_design defaults to False."""
+        plan = RecoveryPlan(problem="p", root_cause="c")
+        assert plan.needs_design is False
+        assert plan.design_reason == ""
+
+    def test_multi_task_failure_triggers_escalation(self) -> None:
+        """3+ tasks failed at the same level triggers design escalation."""
+        planner = RecoveryPlanner()
+        result = self._make_result(symptom="Tasks failing")
+        health = self._make_health(failed=[
+            {"task_id": f"T{i}", "error": "fail", "level": 2}
+            for i in range(DESIGN_ESCALATION_TASK_THRESHOLD)
+        ])
+        plan = planner.plan(result, health=health)
+        assert plan.needs_design is True
+        assert "level 2" in plan.design_reason
+
+    def test_git_conflict_with_health_triggers_escalation(self) -> None:
+        """git_conflict category with health data triggers escalation."""
+        planner = RecoveryPlanner()
+        result = self._make_result(
+            symptom="Merge conflict", root_cause="Git conflict"
+        )
+        health = self._make_health()
+        plan = planner.plan(result, health=health)
+        assert plan.needs_design is True
+        assert "file ownership" in plan.design_reason
+
+    def test_architectural_keywords_trigger_escalation(self) -> None:
+        """Architectural keywords in root_cause/recommendation trigger escalation."""
+        planner = RecoveryPlanner()
+        result = self._make_result(
+            root_cause="Need to refactor the auth module",
+            recommendation="Refactor auth",
+        )
+        plan = planner.plan(result)
+        assert plan.needs_design is True
+        assert "refactor" in plan.design_reason
+
+    def test_wide_blast_radius_triggers_escalation(self) -> None:
+        """Failures spanning 3+ files triggers escalation."""
+        planner = RecoveryPlanner()
+        result = self._make_result(symptom="Tasks failing")
+        health = self._make_health(failed=[
+            {"task_id": "T1", "error": "fail", "owned_files": ["a.py", "b.py"]},
+            {"task_id": "T2", "error": "fail", "owned_files": ["c.py"]},
+        ])
+        plan = planner.plan(result, health=health)
+        assert plan.needs_design is True
+        assert "3 files" in plan.design_reason
+
+    def test_simple_failure_does_not_trigger(self) -> None:
+        """A simple single-task failure does not trigger escalation."""
+        planner = RecoveryPlanner()
+        result = self._make_result(
+            symptom="Task failed", root_cause="Build error"
+        )
+        health = self._make_health(failed=[
+            {"task_id": "T1", "error": "compile error", "level": 1}
+        ])
+        plan = planner.plan(result, health=health)
+        assert plan.needs_design is False
+        assert plan.design_reason == ""
+
+    def test_to_dict_serializes_design_fields(self) -> None:
+        """RecoveryPlan.to_dict() includes needs_design and design_reason."""
+        plan = RecoveryPlan(
+            problem="p", root_cause="c",
+            needs_design=True, design_reason="task graph flaw",
+        )
+        d = plan.to_dict()
+        assert d["needs_design"] is True
+        assert d["design_reason"] == "task graph flaw"

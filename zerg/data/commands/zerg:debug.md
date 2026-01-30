@@ -300,6 +300,36 @@ If `--fix` flag is set:
 
 ---
 
+## Phase 6.5: Design Escalation Check
+
+After generating the recovery plan, check if the diagnosed issues require architectural changes that go beyond tactical fixes. If so, recommend `/zerg:design` to the user.
+
+**Escalation Triggers** (any one is sufficient):
+
+| Trigger | Condition | Reason |
+|---------|-----------|--------|
+| Multi-task failure | ≥3 tasks failed at the same level | Task graph design flaw |
+| Git conflicts + health | `git_conflict` category with active health data | File ownership needs redesign |
+| Architectural keywords | Root cause or fix mentions: refactor, redesign, new component, restructure, rearchitect, rewrite | Architectural change needed |
+| Wide blast radius | Failures span ≥3 distinct files | Coordinated design required |
+
+**Output** (when escalation is detected):
+
+```
+DESIGN ESCALATION
+=================
+Reason:  <why architectural change is needed>
+Action:  Run /zerg:design to create a new architecture
+         or 'zerg design' from the CLI
+
+Note: Tactical recovery steps above will stabilize the current state.
+      Design addresses the underlying structural issue.
+```
+
+**Behavior with `--fix`**: When `--fix` is active and design escalation is detected, execute the tactical recovery steps first (stabilize), then display the design escalation recommendation. Do NOT auto-invoke `/zerg:design` — it requires human approval.
+
+---
+
 ## Phase 7: Report & Integration
 
 ### Save Report
@@ -470,9 +500,9 @@ Config:
 On invocation, create a Claude Code Task to track this command:
 
 Call TaskCreate:
-  - subject: "[Debug] Diagnose {category}"
-  - description: "Debuging {feature}. Problem: {arguments_or_description}."
-  - activeForm: "Debuging {feature}"
+  - subject: "[Debug] Diagnose {category}" (append " → DESIGN ESCALATION" if design escalation detected)
+  - description: "Debugging {feature}. Problem: {arguments_or_description}. Design escalation: {yes/no — reason}."
+  - activeForm: "Debugging {feature}"
 
 Immediately call TaskUpdate:
   - taskId: (the Claude Task ID)

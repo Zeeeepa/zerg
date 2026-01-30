@@ -115,6 +115,9 @@ class DiagnosticResult:
     correlations: list[dict[str, Any]] = field(default_factory=list)
     env_report: dict[str, Any] | None = None
     fix_suggestions: list[str] = field(default_factory=list)
+    # Design escalation fields
+    design_escalation: bool = False
+    design_escalation_reason: str = ""
 
     @property
     def has_root_cause(self) -> bool:
@@ -159,6 +162,9 @@ class DiagnosticResult:
             result["env_report"] = self.env_report
         if self.fix_suggestions:
             result["fix_suggestions"] = self.fix_suggestions
+        if self.design_escalation:
+            result["design_escalation"] = self.design_escalation
+            result["design_escalation_reason"] = self.design_escalation_reason
         return result
 
 
@@ -624,6 +630,11 @@ class DebugCommand:
             result.recovery_plan = planner.plan(
                 result, health=result.zerg_health
             )
+            if result.recovery_plan.needs_design:
+                result.design_escalation = True
+                result.design_escalation_reason = (
+                    result.recovery_plan.design_reason
+                )
         except Exception as e:
             logger.warning(f"Recovery planning failed: {e}")
             result.evidence.append(f"Recovery planning error: {e}")
@@ -853,6 +864,13 @@ class DebugCommand:
                     f"Recovery: {len(plan.steps)} steps available (use --verbose)"
                 )
 
+        # Design escalation section
+        if result.design_escalation:
+            lines.append("")
+            lines.append("DESIGN ESCALATION")
+            lines.append(f"  Reason: {result.design_escalation_reason}")
+            lines.append("  Action: Run 'zerg design' or '/zerg:design' to redesign")
+
         return "\n".join(lines)
 
 
@@ -944,6 +962,13 @@ def _write_markdown_report(
     if result.env_report is not None:
         lines.append("## Environment Report")
         lines.append(f"```json\n{json.dumps(result.env_report, indent=2)}\n```")
+        lines.append("")
+
+    if result.design_escalation:
+        lines.append("## Design Escalation")
+        lines.append(f"**Reason:** {result.design_escalation_reason}")
+        lines.append("")
+        lines.append("**Action:** Run `zerg design` or `/zerg:design` to redesign")
         lines.append("")
 
     # Write text format at the end
@@ -1350,6 +1375,19 @@ def debug(
                         f"  [dim]Recovery: {len(plan.steps)} steps available"
                         " (use --verbose)[/dim]"
                     )
+
+            # Design escalation
+            if result.design_escalation:
+                console.print()
+                console.print(
+                    Panel(
+                        f"[bold]Design Escalation[/bold]\n"
+                        f"  Reason: {result.design_escalation_reason}\n"
+                        f"  Action: Run [bold]zerg design[/bold] or "
+                        f"[bold]/zerg:design[/bold] to redesign",
+                        style="yellow",
+                    )
+                )
 
             output_content = debugger.format_result(result, "text")
 

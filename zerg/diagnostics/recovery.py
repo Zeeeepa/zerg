@@ -17,6 +17,15 @@ logger = get_logger("diagnostics.recovery")
 
 SUBPROCESS_TIMEOUT = 10
 
+# Keywords in fix text that suggest architectural changes are needed
+ARCHITECTURAL_KEYWORDS = frozenset({
+    "refactor", "redesign", "new component", "restructure", "rearchitect",
+    "split module", "extract service", "new abstraction", "rewrite",
+})
+
+# Default threshold for multi-task failure escalation (configurable)
+DESIGN_ESCALATION_TASK_THRESHOLD = 3
+
 
 @dataclass
 class RecoveryStep:
@@ -46,6 +55,8 @@ class RecoveryPlan:
     steps: list[RecoveryStep] = field(default_factory=list)
     verification_command: str = ""
     prevention: str = ""
+    needs_design: bool = False
+    design_reason: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -55,6 +66,8 @@ class RecoveryPlan:
             "steps": [s.to_dict() for s in self.steps],
             "verification_command": self.verification_command,
             "prevention": self.prevention,
+            "needs_design": self.needs_design,
+            "design_reason": self.design_reason,
         }
 
 
@@ -171,13 +184,19 @@ class RecoveryPlanner:
         if health:
             feature = health.feature
 
-        return RecoveryPlan(
+        plan = RecoveryPlan(
             problem=result.symptom,
             root_cause=result.root_cause,
             steps=steps,
             verification_command=self._get_verification(category, feature),
             prevention=self._get_prevention(category),
         )
+
+        needs, reason = self._check_design_escalation(category, result, health)
+        plan.needs_design = needs
+        plan.design_reason = reason
+
+        return plan
 
     def _classify_error(
         self,
@@ -272,6 +291,64 @@ class RecoveryPlanner:
             "task_failure": "Add retry logic and improve verification commands",
         }
         return preventions.get(category, "Review logs and improve error handling")
+
+    def _check_design_escalation(
+        self,
+        category: str,
+        result: DiagnosticResult,
+        health: ZergHealthReport | None,
+        threshold: int = DESIGN_ESCALATION_TASK_THRESHOLD,
+    ) -> tuple[bool, str]:
+        """Check if diagnosed issues need architectural redesign via /zerg:design.
+
+        Returns (needs_design, reason) tuple.
+        """
+        # Heuristic 1: 3+ tasks failed at same level → task graph design flaw
+        if health and health.failed_tasks:
+            failed_levels: dict[int, int] = {}
+            for task in health.failed_tasks:
+                level = task.get("level", 0)
+                failed_levels[level] = failed_levels.get(level, 0) + 1
+            for level, count in failed_levels.items():
+                if count >= threshold:
+                    return (
+                        True,
+                        f"{count} tasks failed at level {level} — "
+                        "task graph may have a design flaw",
+                    )
+
+        # Heuristic 2: git_conflict category with health data → file ownership
+        if category == "git_conflict" and health is not None:
+            return (
+                True,
+                "Git conflicts with active health data — "
+                "file ownership needs redesign",
+            )
+
+        # Heuristic 3: Fix text contains architectural keywords
+        combined_text = f"{result.root_cause} {result.recommendation}".lower()
+        for keyword in ARCHITECTURAL_KEYWORDS:
+            if keyword in combined_text:
+                return (
+                    True,
+                    f"Root cause/recommendation mentions '{keyword}' — "
+                    "architectural change needed",
+                )
+
+        # Heuristic 4: Fix spans 3+ distinct files → wide blast radius
+        if health and health.failed_tasks:
+            files: set[str] = set()
+            for task in health.failed_tasks:
+                for f in task.get("owned_files", []):
+                    files.add(f)
+            if len(files) >= 3:
+                return (
+                    True,
+                    f"Failures span {len(files)} files — "
+                    "wide blast radius needs coordinated design",
+                )
+
+        return False, ""
 
     def execute_step(
         self,

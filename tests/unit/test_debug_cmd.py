@@ -1976,3 +1976,61 @@ class TestDebugCLIExtended:
         runner = CliRunner()
         result = runner.invoke(debug, ["--feature", "test"])
         assert result.exit_code == 0
+
+
+# =============================================================================
+# Design Escalation Tests
+# =============================================================================
+
+
+class TestDesignEscalationPropagation:
+    """Tests for design escalation propagation from RecoveryPlan to DiagnosticResult."""
+
+    def test_propagation_from_recovery_plan(self) -> None:
+        """_plan_recovery propagates needs_design to DiagnosticResult."""
+        from zerg.diagnostics.recovery import RecoveryPlan, RecoveryStep
+
+        debugger = DebugCommand()
+        diag = DiagnosticResult(
+            symptom="test",
+            hypotheses=[],
+            root_cause="unknown",
+            recommendation="fix",
+        )
+        with patch("zerg.diagnostics.recovery.RecoveryPlanner") as mock_cls:
+            mock_cls.return_value.plan.return_value = RecoveryPlan(
+                problem="test",
+                root_cause="cause",
+                steps=[RecoveryStep(description="s", command="c")],
+                needs_design=True,
+                design_reason="task graph flaw",
+            )
+            diag = debugger._plan_recovery(diag)
+
+        assert diag.design_escalation is True
+        assert diag.design_escalation_reason == "task graph flaw"
+
+    def test_diagnostic_result_to_dict_with_escalation(self) -> None:
+        """DiagnosticResult.to_dict() includes design escalation fields."""
+        diag = DiagnosticResult(
+            symptom="err",
+            hypotheses=[],
+            root_cause="cause",
+            recommendation="fix",
+            design_escalation=True,
+            design_escalation_reason="wide blast radius",
+        )
+        d = diag.to_dict()
+        assert d["design_escalation"] is True
+        assert d["design_escalation_reason"] == "wide blast radius"
+
+    def test_diagnostic_result_to_dict_omits_when_false(self) -> None:
+        """DiagnosticResult.to_dict() omits design escalation when False."""
+        diag = DiagnosticResult(
+            symptom="err",
+            hypotheses=[],
+            root_cause="cause",
+            recommendation="fix",
+        )
+        d = diag.to_dict()
+        assert "design_escalation" not in d
