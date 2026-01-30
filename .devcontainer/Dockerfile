@@ -7,7 +7,7 @@ ARG PYTHON_VERSION=3.12
 ENV DEBIAN_FRONTEND=noninteractive
 
 # System dependencies (separated from pip for layer caching)
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     wget \
     git \
@@ -21,7 +21,8 @@ RUN apt-get update && apt-get install -y \
 
 # Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
-    && apt-get install -y nodejs
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
 # Configure npm for global installs in /usr/local (accessible to all users)
 ENV NPM_CONFIG_PREFIX=/usr/local
@@ -55,6 +56,9 @@ RUN mkdir -p /root/.claude/tasks /workspace
 # Set in system config so it applies to all users (including non-root)
 RUN git config --system user.email "zerg-worker@local" && \
     git config --system user.name "ZERG Worker"
+
+# Switch to non-root user (provided by devcontainers base image)
+USER vscode
 
 # Set working directory
 WORKDIR /workspace
