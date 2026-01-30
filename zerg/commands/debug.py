@@ -459,6 +459,24 @@ class DebugCommand:
         if auto_fix or feature:
             result = self._plan_recovery(result)
 
+        # Enhanced diagnostics pipeline
+        result = self._run_enhanced_diagnostics(
+            result, full_error, stack_trace, feature, worker_id, deep, env
+        )
+
+        return result
+
+    def _run_enhanced_diagnostics(
+        self,
+        result: DiagnosticResult,
+        full_error: str,
+        stack_trace: str,
+        feature: str | None,
+        worker_id: int | None,
+        deep: bool,
+        env: bool,
+    ) -> DiagnosticResult:
+        """Run enhanced diagnostic engines (error intel, log correlation, etc.)."""
         # Enhanced: Error Intelligence
         try:
             from zerg.diagnostics.error_intel import ErrorIntelEngine
@@ -711,7 +729,37 @@ class DebugCommand:
                     lines.append(f"     Test: {h.test_command}")
             lines.append("")
 
-        # ZERG health section
+        # Append sections from helpers
+        lines.extend(self._format_zerg_health_text(result))
+        lines.extend(self._format_log_patterns_text(result))
+        lines.extend(self._format_system_health_text(result))
+
+        # Evidence section
+        if result.evidence and self.config.verbose:
+            lines.append("Evidence:")
+            for ev in result.evidence:
+                lines.append(f"  - {ev}")
+            lines.append("")
+
+        lines.extend(self._format_enhanced_sections_text(result))
+
+        lines.extend(
+            [
+                f"Root Cause: {result.root_cause}",
+                f"Confidence: {result.confidence:.0%}",
+                "",
+                f"Recommendation: {result.recommendation}",
+            ]
+        )
+
+        lines.extend(self._format_recovery_plan_text(result))
+        lines.extend(self._format_design_escalation_text(result))
+
+        return "\n".join(lines)
+
+    def _format_zerg_health_text(self, result: DiagnosticResult) -> list[str]:
+        """Format ZERG health section for text output."""
+        lines: list[str] = []
         if result.zerg_health is not None:
             health = result.zerg_health
             if self.config.verbose:
@@ -735,8 +783,11 @@ class DebugCommand:
                     summary += f", {failed} failed"
                 lines.append(summary)
                 lines.append("")
+        return lines
 
-        # Log patterns section
+    def _format_log_patterns_text(self, result: DiagnosticResult) -> list[str]:
+        """Format log patterns section for text output."""
+        lines: list[str] = []
         if result.log_patterns and self.config.verbose:
             lines.append("Log Patterns:")
             for pat in result.log_patterns[:5]:
@@ -746,8 +797,11 @@ class DebugCommand:
                     f"(workers: {workers})"
                 )
             lines.append("")
+        return lines
 
-        # System health section
+    def _format_system_health_text(self, result: DiagnosticResult) -> list[str]:
+        """Format system health section for text output."""
+        lines: list[str] = []
         if result.system_health is not None:
             sys_h = result.system_health
             if self.config.verbose:
@@ -768,15 +822,13 @@ class DebugCommand:
                     f"System: git {git_state}, {sys_h.disk_free_gb:.1f}GB free"
                 )
                 lines.append("")
+        return lines
 
-        # Evidence section
-        if result.evidence and self.config.verbose:
-            lines.append("Evidence:")
-            for ev in result.evidence:
-                lines.append(f"  - {ev}")
-            lines.append("")
+    def _format_enhanced_sections_text(self, result: DiagnosticResult) -> list[str]:
+        """Format enhanced diagnostic sections (error intel, scored hypotheses, etc.)."""
+        lines: list[str] = []
 
-        # Enhanced: Error Intelligence section
+        # Error Intelligence section
         if result.error_intel is not None:
             intel = result.error_intel
             lines.append("Error Intelligence:")
@@ -789,7 +841,7 @@ class DebugCommand:
                 lines.append(f"  Fingerprint: {intel.hash}")
             lines.append("")
 
-        # Enhanced: Scored Hypotheses section
+        # Scored Hypotheses section
         if result.scored_hypotheses:
             lines.append("Scored Hypotheses (Bayesian):")
             for i, sh in enumerate(result.scored_hypotheses, 1):
@@ -801,14 +853,14 @@ class DebugCommand:
                     lines.append(f"     Fix: {sh.suggested_fix}")
             lines.append("")
 
-        # Enhanced: Fix Suggestions section
+        # Fix Suggestions section
         if result.fix_suggestions:
             lines.append("Fix Suggestions:")
             for i, fix in enumerate(result.fix_suggestions, 1):
                 lines.append(f"  {i}. {fix}")
             lines.append("")
 
-        # Enhanced: Environment Report section
+        # Environment Report section
         if result.env_report is not None and self.config.verbose:
             lines.append("Environment Report:")
             python_info = result.env_report.get("python", {})
@@ -834,16 +886,11 @@ class DebugCommand:
                 lines.append(f"  Config issues: {len(config_issues)}")
             lines.append("")
 
-        lines.extend(
-            [
-                f"Root Cause: {result.root_cause}",
-                f"Confidence: {result.confidence:.0%}",
-                "",
-                f"Recommendation: {result.recommendation}",
-            ]
-        )
+        return lines
 
-        # Recovery plan section
+    def _format_recovery_plan_text(self, result: DiagnosticResult) -> list[str]:
+        """Format recovery plan section for text output."""
+        lines: list[str] = []
         if result.recovery_plan is not None:
             plan = result.recovery_plan
             lines.append("")
@@ -863,15 +910,17 @@ class DebugCommand:
                 lines.append(
                     f"Recovery: {len(plan.steps)} steps available (use --verbose)"
                 )
+        return lines
 
-        # Design escalation section
+    def _format_design_escalation_text(self, result: DiagnosticResult) -> list[str]:
+        """Format design escalation section for text output."""
+        lines: list[str] = []
         if result.design_escalation:
             lines.append("")
             lines.append("DESIGN ESCALATION")
             lines.append(f"  Reason: {result.design_escalation_reason}")
             lines.append("  Action: Run 'zerg design' or '/zerg:design' to redesign")
-
-        return "\n".join(lines)
+        return lines
 
 
 def _load_stacktrace_file(filepath: str) -> str:
@@ -980,6 +1029,382 @@ def _write_markdown_report(
     Path(report_path).write_text("\n".join(lines), encoding="utf-8")
 
 
+def _resolve_inputs(
+    error: str | None,
+    stacktrace: str | None,
+    feature: str | None,
+    deep: bool,
+    auto_fix: bool,
+    interactive: bool,
+) -> tuple[str, str, str | None]:
+    """Resolve and validate debug command inputs.
+
+    Returns:
+        Tuple of (error_message, stack_trace_content, feature).
+        Raises SystemExit(0) if no input is provided.
+    """
+    # Handle interactive mode
+    if interactive:
+        console.print(
+            "[yellow]Interactive mode coming soon[/yellow]"
+        )
+
+    # Load stack trace from file if provided
+    stack_trace_content = ""
+    if stacktrace:
+        stack_trace_content = _load_stacktrace_file(stacktrace)
+        if not stack_trace_content:
+            console.print(f"[yellow]Warning: Could not load {stacktrace}[/yellow]")
+
+    # Need at least error, stack trace, or feature
+    error_message = error or ""
+    if not error_message and not stack_trace_content and not feature:
+        console.print("[yellow]No error provided[/yellow]")
+        console.print("Use --error to specify an error message")
+        console.print("Use --stacktrace to provide a stack trace file")
+        console.print("Use --feature to investigate a ZERG feature")
+        raise SystemExit(0)
+
+    # Auto-detect feature if not provided but deep/auto-fix requested
+    if not feature and (deep or auto_fix):
+        try:
+            from zerg.diagnostics.state_introspector import (
+                ZergStateIntrospector,
+            )
+
+            introspector = ZergStateIntrospector()
+            feature = introspector.find_latest_feature()
+            if feature:
+                console.print(
+                    f"[dim]Auto-detected feature: {feature}[/dim]"
+                )
+        except Exception as e:
+            logger.debug(f"Diagnostic check failed: {e}")
+
+    # If only feature given (no error), set a default symptom
+    if not error_message and not stack_trace_content and feature:
+        error_message = f"Investigating feature: {feature}"
+
+    return error_message, stack_trace_content, feature
+
+
+def _display_symptom_phase(result: DiagnosticResult) -> None:
+    """Display Phase 1: Symptom Analysis output."""
+    console.print(Panel("[bold]Phase 1: Symptom Analysis[/bold]", style="cyan"))
+    console.print(f"  Error: {result.symptom[:100]}")
+
+    if result.parsed_error and result.parsed_error.error_type:
+        console.print(f"  Type: [yellow]{result.parsed_error.error_type}[/yellow]")
+        if result.parsed_error.file:
+            console.print(
+                "  Location: [cyan]"
+                f"{result.parsed_error.file}"
+                f":{result.parsed_error.line}[/cyan]"
+            )
+    console.print()
+
+
+def _display_hypotheses_phase(
+    result: DiagnosticResult, verbose: bool
+) -> None:
+    """Display Phase 2: Hypothesis Generation output."""
+    if not result.hypotheses:
+        return
+
+    console.print(
+        Panel("[bold]Phase 2: Hypothesis Generation[/bold]", style="cyan")
+    )
+    table = Table()
+    table.add_column("#", style="dim")
+    table.add_column("Likelihood")
+    table.add_column("Hypothesis")
+
+    for i, h in enumerate(result.hypotheses, 1):
+        likelihood_color = {
+            "high": "red",
+            "medium": "yellow",
+            "low": "green",
+        }.get(h.likelihood, "white")
+        table.add_row(
+            str(i),
+            f"[{likelihood_color}]{h.likelihood}[/{likelihood_color}]",
+            h.description,
+        )
+
+    console.print(table)
+
+    if verbose:
+        console.print("\n[dim]Test commands:[/dim]")
+        for i, h in enumerate(result.hypotheses, 1):
+            if h.test_command:
+                console.print(f"  {i}. {h.test_command}")
+    console.print()
+
+
+def _display_enhanced_sections(result: DiagnosticResult) -> None:
+    """Display enhanced diagnostic sections (error intel, scored hypotheses, fixes)."""
+    # Error Intelligence
+    if result.error_intel is not None:
+        console.print(
+            Panel("[bold]Error Intelligence[/bold]", style="cyan")
+        )
+        intel = result.error_intel
+        console.print(f"  Language: [bold]{intel.language}[/bold]")
+        console.print(f"  Type: [yellow]{intel.error_type}[/yellow]")
+        if intel.file:
+            loc = (
+                f"{intel.file}:{intel.line}"
+                if intel.line
+                else intel.file
+            )
+            console.print(f"  Location: [cyan]{loc}[/cyan]")
+        if intel.hash:
+            console.print(f"  Fingerprint: [dim]{intel.hash}[/dim]")
+        console.print()
+
+    # Scored Hypotheses
+    if result.scored_hypotheses:
+        console.print(
+            Panel(
+                "[bold]Scored Hypotheses (Bayesian)[/bold]",
+                style="cyan",
+            )
+        )
+        sh_table = Table()
+        sh_table.add_column("#", style="dim")
+        sh_table.add_column("Probability")
+        sh_table.add_column("Hypothesis")
+
+        for i, sh in enumerate(result.scored_hypotheses, 1):
+            prob = sh.posterior_probability
+            prob_color = (
+                "red" if prob >= 0.7
+                else "yellow" if prob >= 0.4
+                else "green"
+            )
+            sh_table.add_row(
+                str(i),
+                f"[{prob_color}]{prob:.0%}[/{prob_color}]",
+                sh.description,
+            )
+
+        console.print(sh_table)
+        console.print()
+
+    # Fix Suggestions
+    if result.fix_suggestions:
+        fix_lines = "\n".join(
+            f"  {i}. {fix}"
+            for i, fix in enumerate(result.fix_suggestions, 1)
+        )
+        console.print(
+            Panel(
+                f"[bold]Fix Suggestions[/bold]\n{fix_lines}",
+                style="green",
+            )
+        )
+        console.print()
+
+
+def _display_health_sections(
+    result: DiagnosticResult, verbose: bool
+) -> None:
+    """Display ZERG health, system health, environment, and evidence sections."""
+    # ZERG health
+    if result.zerg_health is not None:
+        health = result.zerg_health
+        if verbose:
+            console.print(
+                Panel("[bold]ZERG State[/bold]", style="cyan")
+            )
+            console.print(f"  Feature: {health.feature}")
+            console.print(f"  Tasks: {health.total_tasks}")
+            if health.task_summary:
+                summary = ", ".join(
+                    f"{k}: {v}"
+                    for k, v in health.task_summary.items()
+                )
+                console.print(f"  Status: {summary}")
+            if health.failed_tasks:
+                console.print(
+                    f"  [red]Failed: {len(health.failed_tasks)}[/red]"
+                )
+            if health.global_error:
+                console.print(
+                    f"  [red]Error: {health.global_error}[/red]"
+                )
+            console.print()
+        else:
+            failed = len(health.failed_tasks) if health.failed_tasks else 0
+            summary = f"ZERG: {health.feature} — {health.total_tasks} tasks"
+            if failed:
+                summary += f", {failed} failed"
+            console.print(f"  [dim]{summary}[/dim]")
+
+    # System health
+    if result.system_health is not None:
+        sys_h = result.system_health
+        if verbose:
+            console.print(
+                Panel("[bold]System Health[/bold]", style="cyan")
+            )
+            git_status = (
+                "[green]clean[/green]"
+                if sys_h.git_clean
+                else f"[yellow]dirty ({sys_h.git_uncommitted_files} files)[/yellow]"
+            )
+            console.print(f"  Git: {git_status}")
+            console.print(f"  Branch: {sys_h.git_branch}")
+            disk_color = (
+                "green" if sys_h.disk_free_gb >= 5.0
+                else "yellow" if sys_h.disk_free_gb >= 1.0
+                else "red"
+            )
+            console.print(
+                f"  Disk: [{disk_color}]{sys_h.disk_free_gb:.1f} GB free[/{disk_color}]"
+            )
+            if sys_h.port_conflicts:
+                console.print(
+                    f"  [yellow]Port conflicts: {sys_h.port_conflicts}[/yellow]"
+                )
+            console.print()
+        else:
+            git_state = "clean" if sys_h.git_clean else "dirty"
+            console.print(
+                f"  [dim]System: git {git_state},"
+                f" {sys_h.disk_free_gb:.1f}GB free[/dim]"
+            )
+
+    # Environment Report
+    if result.env_report is not None and verbose:
+        console.print(
+            Panel("[bold]Environment Report[/bold]", style="cyan")
+        )
+        python_info = result.env_report.get("python", {})
+        venv_info = python_info.get("venv", {})
+        if venv_info:
+            active = "active" if venv_info.get("active") else "inactive"
+            venv_color = "green" if venv_info.get("active") else "yellow"
+            console.print(
+                f"  Python venv: [{venv_color}]{active}[/{venv_color}]"
+            )
+        resources = result.env_report.get("resources", {})
+        memory = resources.get("memory", {})
+        if memory:
+            console.print(
+                f"  Memory: {memory.get('available_gb', 0):.1f}GB available"
+                f" / {memory.get('total_gb', 0):.1f}GB total"
+            )
+        disk_info = resources.get("disk", {})
+        if disk_info:
+            console.print(
+                f"  Disk: {disk_info.get('free_gb', 0):.1f}GB free"
+                f" ({disk_info.get('used_percent', 0):.0f}% used)"
+            )
+        config_issues = result.env_report.get("config", [])
+        if config_issues:
+            console.print(
+                f"  [yellow]Config issues: {len(config_issues)}[/yellow]"
+            )
+        console.print()
+
+    # Evidence
+    if result.evidence and verbose:
+        console.print(
+            Panel("[bold]Evidence[/bold]", style="cyan")
+        )
+        for ev in result.evidence:
+            console.print(f"  - {ev}")
+        console.print()
+
+
+def _display_root_cause_phase(result: DiagnosticResult) -> None:
+    """Display Phase 4: Root Cause and recommendation."""
+    console.print(Panel("[bold]Phase 4: Root Cause[/bold]", style="cyan"))
+    confidence_color = (
+        "green"
+        if result.confidence >= 0.7
+        else "yellow"
+        if result.confidence >= 0.5
+        else "red"
+    )
+    console.print(f"  Root Cause: [bold]{result.root_cause}[/bold]")
+    console.print(
+        f"  Confidence: [{confidence_color}]{result.confidence:.0%}[/{confidence_color}]"
+    )
+    console.print()
+    console.print(
+        Panel(
+            f"[bold]Recommendation:[/bold] {result.recommendation}",
+            style="green",
+        )
+    )
+
+
+def _display_recovery_and_escalation(
+    result: DiagnosticResult, verbose: bool
+) -> None:
+    """Display recovery plan and design escalation sections."""
+    if result.recovery_plan is not None:
+        plan = result.recovery_plan
+        console.print()
+        if verbose:
+            console.print(
+                Panel("[bold]Recovery Plan[/bold]", style="cyan")
+            )
+            for i, step in enumerate(plan.steps, 1):
+                risk_color = {
+                    "safe": "green",
+                    "moderate": "yellow",
+                    "destructive": "red",
+                }.get(step.risk, "white")
+                console.print(
+                    f"  {i}. [{risk_color}][{step.risk}][/{risk_color}]"
+                    f" {step.description}"
+                )
+                console.print(f"     [dim]$ {step.command}[/dim]")
+            if plan.prevention:
+                console.print(
+                    f"\n  [dim]Prevention: {plan.prevention}[/dim]"
+                )
+        else:
+            console.print(
+                f"  [dim]Recovery: {len(plan.steps)} steps available"
+                " (use --verbose)[/dim]"
+            )
+
+    if result.design_escalation:
+        console.print()
+        console.print(
+            Panel(
+                f"[bold]Design Escalation[/bold]\n"
+                f"  Reason: {result.design_escalation_reason}\n"
+                f"  Action: Run [bold]zerg design[/bold] or "
+                f"[bold]/zerg:design[/bold] to redesign",
+                style="yellow",
+            )
+        )
+
+
+def _display_rich_output(
+    result: DiagnosticResult,
+    debugger: DebugCommand,
+    verbose: bool,
+) -> str:
+    """Display rich console output for diagnostic result.
+
+    Returns the text-formatted output content.
+    """
+    _display_symptom_phase(result)
+    _display_hypotheses_phase(result, verbose)
+    _display_enhanced_sections(result)
+    _display_health_sections(result, verbose)
+    _display_root_cause_phase(result)
+    _display_recovery_and_escalation(result, verbose)
+
+    return debugger.format_result(result, "text")
+
+
 @click.command()
 @click.option("--error", "-e", help="Error message to analyze")
 @click.option("--stacktrace", "-s", help="Path to stack trace file")
@@ -1047,47 +1472,10 @@ def debug(
     try:
         console.print("\n[bold cyan]ZERG Debug[/bold cyan]\n")
 
-        # Handle interactive mode
-        if interactive:
-            console.print(
-                "[yellow]Interactive mode coming soon[/yellow]"
-            )
-
-        # Load stack trace from file if provided
-        stack_trace_content = ""
-        if stacktrace:
-            stack_trace_content = _load_stacktrace_file(stacktrace)
-            if not stack_trace_content:
-                console.print(f"[yellow]Warning: Could not load {stacktrace}[/yellow]")
-
-        # Need at least error, stack trace, or feature
-        error_message = error or ""
-        if not error_message and not stack_trace_content and not feature:
-            console.print("[yellow]No error provided[/yellow]")
-            console.print("Use --error to specify an error message")
-            console.print("Use --stacktrace to provide a stack trace file")
-            console.print("Use --feature to investigate a ZERG feature")
-            raise SystemExit(0)
-
-        # Auto-detect feature if not provided but deep/auto-fix requested
-        if not feature and (deep or auto_fix):
-            try:
-                from zerg.diagnostics.state_introspector import (
-                    ZergStateIntrospector,
-                )
-
-                introspector = ZergStateIntrospector()
-                feature = introspector.find_latest_feature()
-                if feature:
-                    console.print(
-                        f"[dim]Auto-detected feature: {feature}[/dim]"
-                    )
-            except Exception as e:
-                logger.debug(f"Diagnostic check failed: {e}")
-
-        # If only feature given (no error), set a default symptom
-        if not error_message and not stack_trace_content and feature:
-            error_message = f"Investigating feature: {feature}"
+        # Resolve and validate inputs
+        error_message, stack_trace_content, feature = _resolve_inputs(
+            error, stacktrace, feature, deep, auto_fix, interactive
+        )
 
         # Create config
         config = DebugConfig(
@@ -1112,284 +1500,7 @@ def debug(
             output_content = debugger.format_result(result, "json")
             console.print(output_content)
         else:
-            # Display diagnostic panel
-            console.print(Panel("[bold]Phase 1: Symptom Analysis[/bold]", style="cyan"))
-            console.print(f"  Error: {result.symptom[:100]}")
-
-            if result.parsed_error and result.parsed_error.error_type:
-                console.print(f"  Type: [yellow]{result.parsed_error.error_type}[/yellow]")
-                if result.parsed_error.file:
-                    console.print(
-                        "  Location: [cyan]"
-                        f"{result.parsed_error.file}"
-                        f":{result.parsed_error.line}[/cyan]"
-                    )
-            console.print()
-
-            # Hypotheses
-            if result.hypotheses:
-                console.print(
-                    Panel("[bold]Phase 2: Hypothesis Generation[/bold]", style="cyan")
-                )
-                table = Table()
-                table.add_column("#", style="dim")
-                table.add_column("Likelihood")
-                table.add_column("Hypothesis")
-
-                for i, h in enumerate(result.hypotheses, 1):
-                    likelihood_color = {
-                        "high": "red",
-                        "medium": "yellow",
-                        "low": "green",
-                    }.get(h.likelihood, "white")
-                    table.add_row(
-                        str(i),
-                        f"[{likelihood_color}]{h.likelihood}[/{likelihood_color}]",
-                        h.description,
-                    )
-
-                console.print(table)
-
-                if verbose:
-                    console.print("\n[dim]Test commands:[/dim]")
-                    for i, h in enumerate(result.hypotheses, 1):
-                        if h.test_command:
-                            console.print(f"  {i}. {h.test_command}")
-                console.print()
-
-            # Error Intelligence
-            if result.error_intel is not None:
-                console.print(
-                    Panel("[bold]Error Intelligence[/bold]", style="cyan")
-                )
-                intel = result.error_intel
-                console.print(f"  Language: [bold]{intel.language}[/bold]")
-                console.print(f"  Type: [yellow]{intel.error_type}[/yellow]")
-                if intel.file:
-                    loc = (
-                        f"{intel.file}:{intel.line}"
-                        if intel.line
-                        else intel.file
-                    )
-                    console.print(f"  Location: [cyan]{loc}[/cyan]")
-                if intel.hash:
-                    console.print(f"  Fingerprint: [dim]{intel.hash}[/dim]")
-                console.print()
-
-            # Scored Hypotheses
-            if result.scored_hypotheses:
-                console.print(
-                    Panel(
-                        "[bold]Scored Hypotheses (Bayesian)[/bold]",
-                        style="cyan",
-                    )
-                )
-                sh_table = Table()
-                sh_table.add_column("#", style="dim")
-                sh_table.add_column("Probability")
-                sh_table.add_column("Hypothesis")
-
-                for i, sh in enumerate(result.scored_hypotheses, 1):
-                    prob = sh.posterior_probability
-                    prob_color = (
-                        "red" if prob >= 0.7
-                        else "yellow" if prob >= 0.4
-                        else "green"
-                    )
-                    sh_table.add_row(
-                        str(i),
-                        f"[{prob_color}]{prob:.0%}[/{prob_color}]",
-                        sh.description,
-                    )
-
-                console.print(sh_table)
-                console.print()
-
-            # Fix Suggestions
-            if result.fix_suggestions:
-                fix_lines = "\n".join(
-                    f"  {i}. {fix}"
-                    for i, fix in enumerate(result.fix_suggestions, 1)
-                )
-                console.print(
-                    Panel(
-                        f"[bold]Fix Suggestions[/bold]\n{fix_lines}",
-                        style="green",
-                    )
-                )
-                console.print()
-
-            # ZERG health
-            if result.zerg_health is not None:
-                health = result.zerg_health
-                if verbose:
-                    console.print(
-                        Panel("[bold]ZERG State[/bold]", style="cyan")
-                    )
-                    console.print(f"  Feature: {health.feature}")
-                    console.print(f"  Tasks: {health.total_tasks}")
-                    if health.task_summary:
-                        summary = ", ".join(
-                            f"{k}: {v}"
-                            for k, v in health.task_summary.items()
-                        )
-                        console.print(f"  Status: {summary}")
-                    if health.failed_tasks:
-                        console.print(
-                            f"  [red]Failed: {len(health.failed_tasks)}[/red]"
-                        )
-                    if health.global_error:
-                        console.print(
-                            f"  [red]Error: {health.global_error}[/red]"
-                        )
-                    console.print()
-                else:
-                    failed = len(health.failed_tasks) if health.failed_tasks else 0
-                    summary = f"ZERG: {health.feature} — {health.total_tasks} tasks"
-                    if failed:
-                        summary += f", {failed} failed"
-                    console.print(f"  [dim]{summary}[/dim]")
-
-            # System health
-            if result.system_health is not None:
-                sys_h = result.system_health
-                if verbose:
-                    console.print(
-                        Panel("[bold]System Health[/bold]", style="cyan")
-                    )
-                    git_status = (
-                        "[green]clean[/green]"
-                        if sys_h.git_clean
-                        else f"[yellow]dirty ({sys_h.git_uncommitted_files} files)[/yellow]"
-                    )
-                    console.print(f"  Git: {git_status}")
-                    console.print(f"  Branch: {sys_h.git_branch}")
-                    disk_color = (
-                        "green" if sys_h.disk_free_gb >= 5.0
-                        else "yellow" if sys_h.disk_free_gb >= 1.0
-                        else "red"
-                    )
-                    console.print(
-                        f"  Disk: [{disk_color}]{sys_h.disk_free_gb:.1f} GB free[/{disk_color}]"
-                    )
-                    if sys_h.port_conflicts:
-                        console.print(
-                            f"  [yellow]Port conflicts: {sys_h.port_conflicts}[/yellow]"
-                        )
-                    console.print()
-                else:
-                    git_state = "clean" if sys_h.git_clean else "dirty"
-                    console.print(
-                        f"  [dim]System: git {git_state},"
-                        f" {sys_h.disk_free_gb:.1f}GB free[/dim]"
-                    )
-
-            # Environment Report
-            if result.env_report is not None and verbose:
-                console.print(
-                    Panel("[bold]Environment Report[/bold]", style="cyan")
-                )
-                python_info = result.env_report.get("python", {})
-                venv_info = python_info.get("venv", {})
-                if venv_info:
-                    active = "active" if venv_info.get("active") else "inactive"
-                    venv_color = "green" if venv_info.get("active") else "yellow"
-                    console.print(
-                        f"  Python venv: [{venv_color}]{active}[/{venv_color}]"
-                    )
-                resources = result.env_report.get("resources", {})
-                memory = resources.get("memory", {})
-                if memory:
-                    console.print(
-                        f"  Memory: {memory.get('available_gb', 0):.1f}GB available"
-                        f" / {memory.get('total_gb', 0):.1f}GB total"
-                    )
-                disk_info = resources.get("disk", {})
-                if disk_info:
-                    console.print(
-                        f"  Disk: {disk_info.get('free_gb', 0):.1f}GB free"
-                        f" ({disk_info.get('used_percent', 0):.0f}% used)"
-                    )
-                config_issues = result.env_report.get("config", [])
-                if config_issues:
-                    console.print(
-                        f"  [yellow]Config issues: {len(config_issues)}[/yellow]"
-                    )
-                console.print()
-
-            # Evidence
-            if result.evidence and verbose:
-                console.print(
-                    Panel("[bold]Evidence[/bold]", style="cyan")
-                )
-                for ev in result.evidence:
-                    console.print(f"  - {ev}")
-                console.print()
-
-            # Root cause
-            console.print(Panel("[bold]Phase 4: Root Cause[/bold]", style="cyan"))
-            confidence_color = (
-                "green"
-                if result.confidence >= 0.7
-                else "yellow"
-                if result.confidence >= 0.5
-                else "red"
-            )
-            console.print(f"  Root Cause: [bold]{result.root_cause}[/bold]")
-            console.print(
-                f"  Confidence: [{confidence_color}]{result.confidence:.0%}[/{confidence_color}]"
-            )
-            console.print()
-            console.print(
-                Panel(
-                    f"[bold]Recommendation:[/bold] {result.recommendation}",
-                    style="green",
-                )
-            )
-
-            # Recovery plan
-            if result.recovery_plan is not None:
-                plan = result.recovery_plan
-                console.print()
-                if verbose:
-                    console.print(
-                        Panel("[bold]Recovery Plan[/bold]", style="cyan")
-                    )
-                    for i, step in enumerate(plan.steps, 1):
-                        risk_color = {
-                            "safe": "green",
-                            "moderate": "yellow",
-                            "destructive": "red",
-                        }.get(step.risk, "white")
-                        console.print(
-                            f"  {i}. [{risk_color}][{step.risk}][/{risk_color}]"
-                            f" {step.description}"
-                        )
-                        console.print(f"     [dim]$ {step.command}[/dim]")
-                    if plan.prevention:
-                        console.print(
-                            f"\n  [dim]Prevention: {plan.prevention}[/dim]"
-                        )
-                else:
-                    console.print(
-                        f"  [dim]Recovery: {len(plan.steps)} steps available"
-                        " (use --verbose)[/dim]"
-                    )
-
-            # Design escalation
-            if result.design_escalation:
-                console.print()
-                console.print(
-                    Panel(
-                        f"[bold]Design Escalation[/bold]\n"
-                        f"  Reason: {result.design_escalation_reason}\n"
-                        f"  Action: Run [bold]zerg design[/bold] or "
-                        f"[bold]/zerg:design[/bold] to redesign",
-                        style="yellow",
-                    )
-                )
-
-            output_content = debugger.format_result(result, "text")
+            output_content = _display_rich_output(result, debugger, verbose)
 
         # Write to file if requested
         if output:
