@@ -71,6 +71,11 @@ if ! python3 -c "import pydantic" 2>/dev/null; then
         pip3 install -q --break-system-packages pydantic click rich jsonschema pytest
 fi
 
+# Ensure pip-installed scripts are in PATH (pytest, ruff, mypy, etc.)
+USER_BIN="$(python3 -m site --user-base 2>/dev/null)/bin"
+[ -d "$USER_BIN" ] && export PATH="$USER_BIN:$PATH"
+export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
+
 # Run the ZERG worker main
 # Note: Do NOT use 'exec' here -- the container CMD has a fallback sleep
 # after this script to keep the container alive for debugging if worker exits.
