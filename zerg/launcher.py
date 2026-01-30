@@ -67,6 +67,10 @@ DANGEROUS_ENV_VARS = {
     "TEMP",
 }
 
+# Container path constants
+CONTAINER_HOME_DIR = "/home/worker"
+CONTAINER_HEALTH_FILE = "/tmp/.zerg-alive"
+
 
 def validate_env_vars(env: dict[str, str]) -> dict[str, str]:
     """Validate and filter environment variables.
@@ -116,8 +120,8 @@ def get_plugin_launcher(name: str, registry: "Any") -> "WorkerLauncher | None":
         return None
     try:
         return plugin.create_launcher(None)
-    except Exception:
-        logger.warning(f"Plugin launcher '{name}' failed to create launcher instance")
+    except Exception as e:
+        logger.warning(f"Plugin launcher '{name}' failed to create launcher instance: {e}")
         return None
 
 
@@ -797,7 +801,7 @@ class ContainerLauncher(WorkerLauncher):
         # This is required because --dangerously-skip-permissions doesn't work as root
         uid = os.getuid()
         gid = os.getgid()
-        home_dir = "/home/worker"
+        home_dir = CONTAINER_HOME_DIR
 
         cmd = [
             "docker", "run", "-d",
@@ -1031,7 +1035,7 @@ class ContainerLauncher(WorkerLauncher):
                     if age > timedelta(seconds=60):
                         alive_check = subprocess.run(
                             ["docker", "exec", container_id,
-                             "test", "-f", "/tmp/.zerg-alive"],
+                             "test", "-f", CONTAINER_HEALTH_FILE],
                             capture_output=True,
                             timeout=5,
                         )
@@ -1201,5 +1205,6 @@ class ContainerLauncher(WorkerLauncher):
                 timeout=10,
             )
             return result.returncode == 0
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Container check failed: {e}")
             return False
