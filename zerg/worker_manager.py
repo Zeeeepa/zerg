@@ -112,7 +112,10 @@ class WorkerManager:
             RuntimeError: If the worker fails to spawn or circuit is open
         """
         # Check circuit breaker before spawning
-        if self._circuit_breaker is not None and not self._circuit_breaker.can_accept_task(worker_id):
+        if (
+            self._circuit_breaker is not None
+            and not self._circuit_breaker.can_accept_task(worker_id)
+        ):
             logger.warning(f"Worker {worker_id} circuit is open, skipping spawn")
             raise RuntimeError(f"Worker {worker_id} circuit breaker is open")
 

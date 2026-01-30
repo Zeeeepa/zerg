@@ -271,6 +271,15 @@ class TestGetWorkerImageName:
         config.logging = MagicMock()
         config.logging.directory = "/tmp/logs"
         config.get_launcher_type.return_value = MagicMock()
+        # Error recovery config for circuit breaker / backpressure
+        er_config = MagicMock()
+        er_config.circuit_breaker.failure_threshold = 3
+        er_config.circuit_breaker.cooldown_seconds = 60
+        er_config.circuit_breaker.enabled = True
+        er_config.backpressure.failure_rate_threshold = 0.5
+        er_config.backpressure.window_size = 10
+        er_config.backpressure.enabled = True
+        config.error_recovery = er_config
 
         orch = Orchestrator("test-feature", config=config)
         image_name = orch._get_worker_image_name()

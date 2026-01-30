@@ -16,6 +16,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from zerg.assign import WorkerAssignment
+from zerg.backpressure import BackpressureController
+from zerg.circuit_breaker import CircuitBreaker
 from zerg.config import ZergConfig
 from zerg.constants import (
     LOGS_TASKS_DIR,
@@ -51,7 +54,6 @@ from zerg.task_sync import TaskSyncBridge
 from zerg.types import WorkerState
 from zerg.worker_manager import WorkerManager
 from zerg.worktree import WorktreeManager
-from zerg.assign import WorkerAssignment
 
 logger = get_logger("orchestrator")
 
@@ -163,6 +165,20 @@ class Orchestrator:
             structured_writer=self._structured_writer,
         )
         self._state_sync = StateSyncService(state=self.state, levels=self.levels)
+
+        # Error recovery components
+        er_config = self.config.error_recovery
+        self._circuit_breaker = CircuitBreaker(
+            failure_threshold=er_config.circuit_breaker.failure_threshold,
+            cooldown_seconds=er_config.circuit_breaker.cooldown_seconds,
+            enabled=er_config.circuit_breaker.enabled,
+        )
+        self._backpressure = BackpressureController(
+            failure_rate_threshold=er_config.backpressure.failure_rate_threshold,
+            window_size=er_config.backpressure.window_size,
+            enabled=er_config.backpressure.enabled,
+        )
+
         self._worker_manager = WorkerManager(
             feature=self.feature,
             config=self.config,
@@ -178,6 +194,7 @@ class Orchestrator:
             on_task_complete=self._on_task_complete,
             on_task_failure=self._retry_manager.handle_task_failure,
             structured_writer=self._structured_writer,
+            circuit_breaker=self._circuit_breaker,
         )
         self._level_coord = LevelCoordinator(
             feature=self.feature,
@@ -192,6 +209,7 @@ class Orchestrator:
             on_level_complete_callbacks=self._on_level_complete,
             assigner=self.assigner,
             structured_writer=self._structured_writer,
+            backpressure=self._backpressure,
         )
 
     # ------------------------------------------------------------------
@@ -491,6 +509,8 @@ class Orchestrator:
             "levels": level_status["levels"],
             "is_complete": level_status["is_complete"],
             "metrics": metrics_dict,
+            "circuit_breaker": self._circuit_breaker.get_status(),
+            "backpressure": self._backpressure.get_status(),
         }
 
     def _main_loop(self) -> None:

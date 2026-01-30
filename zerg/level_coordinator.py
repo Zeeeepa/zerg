@@ -4,10 +4,12 @@ Handles level START, COMPLETE, and MERGE workflows extracted from the
 Orchestrator class.
 """
 
+from __future__ import annotations
+
 import concurrent.futures
 import time
 from collections.abc import Callable
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from zerg.assign import WorkerAssignment
 from zerg.config import ZergConfig
@@ -27,6 +29,9 @@ from zerg.plugins import LifecycleEvent, PluginRegistry
 from zerg.state import StateManager
 from zerg.task_sync import TaskSyncBridge
 from zerg.types import WorkerState
+
+if TYPE_CHECKING:
+    from zerg.backpressure import BackpressureController
 
 logger = get_logger("level_coordinator")
 
@@ -53,6 +58,7 @@ class LevelCoordinator:
         on_level_complete_callbacks: list[Callable[[int], None]],
         assigner: WorkerAssignment | None = None,
         structured_writer: StructuredLogWriter | None = None,
+        backpressure: BackpressureController | None = None,
     ) -> None:
         """Initialize level coordinator.
 
@@ -69,6 +75,7 @@ class LevelCoordinator:
             on_level_complete_callbacks: Callbacks list (passed by reference)
             assigner: Optional worker assignment instance
             structured_writer: Optional structured log writer
+            backpressure: Optional backpressure controller for level failure management
         """
         self.feature = feature
         self.config = config
@@ -82,6 +89,7 @@ class LevelCoordinator:
         self._on_level_complete = on_level_complete_callbacks
         self.assigner = assigner
         self._structured_writer = structured_writer
+        self._backpressure = backpressure
         self._paused = False
 
     @property
@@ -103,6 +111,11 @@ class LevelCoordinator:
         logger.info(f"Starting level {level}")
 
         task_ids = self.levels.start_level(level)
+
+        # Register level with backpressure controller
+        if self._backpressure is not None:
+            self._backpressure.register_level(level, len(task_ids))
+
         self.state.set_current_level(level)
         self.state.set_level_status(level, "running")
         self.state.append_event("level_started", {"level": level, "tasks": len(task_ids)})
@@ -189,6 +202,10 @@ class LevelCoordinator:
                 time.sleep(backoff)
 
         if merge_result and merge_result.success:
+            # Record success in backpressure controller
+            if self._backpressure is not None:
+                self._backpressure.record_success(level)
+
             self.state.set_level_status(level, "complete", merge_commit=merge_result.merge_commit)
             self.state.set_level_merge_status(level, LevelMergeStatus.COMPLETE)
             self.state.append_event("level_complete", {
@@ -250,6 +267,16 @@ class LevelCoordinator:
         else:
             error_msg = merge_result.error if merge_result else "Unknown merge error"
             logger.error(f"Level {level} merge failed after {max_retries} attempts: {error_msg}")
+
+            # Record failure in backpressure controller and check for pause
+            if self._backpressure is not None:
+                self._backpressure.record_failure(level)
+                if self._backpressure.should_pause(level):
+                    self._backpressure.pause_level(level)
+                    logger.warning(
+                        f"Level {level} paused by backpressure controller "
+                        f"(failure rate: {self._backpressure.get_failure_rate(level):.0%})"
+                    )
 
             if "conflict" in str(error_msg).lower():
                 self.state.set_level_merge_status(

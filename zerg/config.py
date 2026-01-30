@@ -92,6 +92,29 @@ class SecurityConfig(BaseModel):
     container_readonly: bool = True
 
 
+class CircuitBreakerConfig(BaseModel):
+    """Circuit breaker configuration."""
+
+    enabled: bool = True
+    failure_threshold: int = Field(default=3, ge=1, le=20)
+    cooldown_seconds: int = Field(default=60, ge=5, le=600)
+
+
+class BackpressureConfig(BaseModel):
+    """Backpressure controller configuration."""
+
+    enabled: bool = True
+    failure_rate_threshold: float = Field(default=0.5, ge=0.1, le=1.0)
+    window_size: int = Field(default=10, ge=3, le=100)
+
+
+class ErrorRecoveryConfig(BaseModel):
+    """Error recovery configuration."""
+
+    circuit_breaker: CircuitBreakerConfig = Field(default_factory=CircuitBreakerConfig)
+    backpressure: BackpressureConfig = Field(default_factory=BackpressureConfig)
+
+
 class ZergConfig(BaseModel):
     """Complete ZERG configuration."""
 
@@ -104,6 +127,7 @@ class ZergConfig(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     plugins: PluginsConfig = Field(default_factory=PluginsConfig)
+    error_recovery: ErrorRecoveryConfig = Field(default_factory=ErrorRecoveryConfig)
 
     @classmethod
     def load(cls, config_path: str | Path | None = None) -> "ZergConfig":
