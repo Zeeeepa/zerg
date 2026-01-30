@@ -1,40 +1,49 @@
-# ZERG State: coverage-100
+# ZERG State: production-dogfooding
 
 ## Current Phase
-- **Level:** 1
-- **Started:** 2026-01-27T12:14:56.525468
-- **Last Update:** 2026-01-27T12:27:01.859303
-- **Error:** Failed to parse state file: Expecting value: line 1 column 1 (char 0)
+- **Level:** 2
+- **Started:** 2026-01-29T19:22:22.420042
+- **Last Update:** 2026-01-29T19:27:00.197839
+- **Status:** PAUSED
+- **Error:** 'WorkerAssignment' object has no attribute 'assignments'
 
 ## Tasks
 
 | ID | Status | Worker | Updated |
 |----|--------|--------|---------|
-| COV-001 | complete | 0 | 12:21:44 |
-| COV-002 | complete | 1 | 12:24:39 |
-| COV-003 | complete | 2 | 12:20:18 |
+| DF-L1-001 | complete | 0 | 02:23:30 |
+| DF-L1-002 | complete | 0 | 02:24:02 |
+| DF-L1-003 | complete | 1 | 02:24:58 |
+| DF-L1-004 | complete | 1 | 02:26:10 |
+| DF-L1-005 | complete | 1 | 02:26:26 |
+| DF-L2-001 | pending | 1 | 19:26:58 |
+| DF-L2-002 | pending | 0 | 19:26:58 |
+| DF-L2-003 | pending | 1 | 19:26:58 |
+| DF-L2-004 | pending | 0 | 19:26:58 |
+| DF-L2-005 | pending | 1 | 19:26:58 |
 
 ## Workers
 
 | ID | Status | Tasks Done | Branch |
 |----|--------|------------|--------|
-| 0 | running | 0 | zerg/coverage-100/worker-0 |
-| 1 | running | 0 | zerg/coverage-100/worker-1 |
-| 2 | ready | 0 | zerg/coverage-100/worker-2 |
+| 0 | stopped | 0 | ...duction-dogfooding/worker-0 |
+| 1 | stopped | 0 | ...duction-dogfooding/worker-1 |
 
 ## Levels
 
 - **Level 1:** running
+  - Merge: failed
+- **Level 2:** running
 
 ## Recent Events
 
-- `12:27:01` rush_stopped
-- `12:26:42` worker_ready
-- `12:26:42` worker_started
-- `12:26:41` worker_started
-- `12:26:41` worker_started
-- `12:26:36` worker_ready
-- `12:26:36` worker_started
-- `12:26:35` worker_started
-- `12:26:35` worker_started
-- `12:26:30` worker_ready
+- `19:27:00` rush_stopped
+- `19:27:00` worker_stopped
+- `19:26:59` worker_stopped
+- `19:26:58` level_started
+- `19:26:58` recoverable_error
+- `19:26:38` merge_retry
+- `19:26:28` merge_retry
+- `02:26:26` task_complete
+- `02:26:26` verification_passed
+- `02:26:10` task_complete

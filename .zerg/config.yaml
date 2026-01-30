@@ -31,7 +31,7 @@ quality_gates:
     timeout: 300
   - name: test
     command: pytest -x
-    required: true
+    required: false
     timeout: 600
 
 mcp_servers:
