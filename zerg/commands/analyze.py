@@ -27,6 +27,7 @@ class CheckType(Enum):
     COMPLEXITY = "complexity"
     COVERAGE = "coverage"
     SECURITY = "security"
+    PERFORMANCE = "performance"
 
 
 @dataclass
@@ -205,6 +206,33 @@ class SecurityChecker(BaseChecker):
             )
 
 
+class PerformanceChecker(BaseChecker):
+    """Run comprehensive performance audit."""
+
+    name = "performance"
+
+    def __init__(self, project_path: str = ".") -> None:
+        """Initialize performance checker."""
+        self.project_path = project_path
+        self._last_report: Any = None
+
+    def check(self, files: list[str]) -> AnalysisResult:
+        """Run performance audit."""
+        from zerg.performance.aggregator import PerformanceAuditor
+
+        auditor = PerformanceAuditor(self.project_path)
+        report = auditor.run(files)
+        self._last_report = report
+
+        score = report.overall_score if report.overall_score is not None else 0.0
+        return AnalysisResult(
+            check_type=CheckType.PERFORMANCE,
+            passed=score >= 70.0,
+            issues=report.top_issues(limit=20),
+            score=score,
+        )
+
+
 class AnalyzeCommand:
     """Main analyze command orchestrator."""
 
@@ -216,6 +244,7 @@ class AnalyzeCommand:
             "complexity": ComplexityChecker(self.config.complexity_threshold),
             "coverage": CoverageChecker(self.config.coverage_threshold),
             "security": SecurityChecker(self.config.security_command),
+            "performance": PerformanceChecker(),
         }
 
     def supported_checks(self) -> list[str]:
@@ -229,7 +258,7 @@ class AnalyzeCommand:
         results = []
 
         if "all" in checks:
-            checks = list(self.checkers.keys())
+            checks = [k for k in self.checkers if k != "performance"]
 
         for check_name in checks:
             if check_name in self.checkers:
@@ -340,7 +369,7 @@ def _collect_files(path: str | None) -> list[str]:
 @click.option(
     "--check",
     "-c",
-    type=click.Choice(["lint", "complexity", "coverage", "security", "all"]),
+    type=click.Choice(["lint", "complexity", "coverage", "security", "performance", "all"]),
     default="all",
     help="Type of check to run",
 )
@@ -348,7 +377,7 @@ def _collect_files(path: str | None) -> list[str]:
     "--format",
     "-f",
     "output_format",
-    type=click.Choice(["text", "json", "sarif"]),
+    type=click.Choice(["text", "json", "sarif", "markdown"]),
     default="text",
     help="Output format",
 )
@@ -359,6 +388,9 @@ def _collect_files(path: str | None) -> list[str]:
     help="Thresholds (e.g., complexity=10,coverage=70)",
 )
 @click.option("--files", "-p", help="Path to files to analyze (deprecated, use PATH)")
+@click.option(
+    "--performance", is_flag=True, help="Run comprehensive performance audit (140 factors)"
+)
 @click.pass_context
 def analyze(
     ctx: click.Context,
@@ -367,6 +399,7 @@ def analyze(
     output_format: str,
     threshold: tuple[str, ...],
     files: str | None,
+    performance: bool,
 ) -> None:
     """Run static analysis, complexity metrics, and quality assessment.
 
@@ -384,6 +417,9 @@ def analyze(
         zerg analyze --check complexity --threshold complexity=15
     """
     try:
+        if performance:
+            check = "performance"
+
         console.print("\n[bold cyan]ZERG Analyze[/bold cyan]\n")
 
         # Parse thresholds
@@ -410,6 +446,37 @@ def analyze(
         analyzer = AnalyzeCommand(config)
         checks_to_run = [check] if check != "all" else ["all"]
         results = analyzer.run(checks_to_run, file_list, thresholds)
+
+        # Check if this is a performance-only run with rich report
+        perf_checker = analyzer.checkers.get("performance")
+        if (
+            check == "performance"
+            and perf_checker
+            and hasattr(perf_checker, "_last_report")
+            and perf_checker._last_report is not None
+        ):
+            from zerg.performance.formatters import (
+                format_json as perf_format_json,
+            )
+            from zerg.performance.formatters import (
+                format_markdown,
+                format_rich,
+            )
+            from zerg.performance.formatters import (
+                format_sarif as perf_format_sarif,
+            )
+
+            report = perf_checker._last_report
+            if output_format == "text":
+                format_rich(report, console)
+            elif output_format == "json":
+                console.print(perf_format_json(report))
+            elif output_format == "sarif":
+                console.print(perf_format_sarif(report))
+            elif output_format == "markdown":
+                console.print(format_markdown(report))
+            overall = results[0].passed if results else True
+            raise SystemExit(0 if overall else 1)
 
         # Output results
         if output_format == "text":
