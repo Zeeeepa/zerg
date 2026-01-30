@@ -65,7 +65,7 @@ if ! command -v python &>/dev/null && command -v python3 &>/dev/null; then
 fi
 
 # Install ZERG dependencies if not already installed
-if ! python3 -c "import pydantic" 2>/dev/null; then
+if ! python3 -c "import pydantic" 2>/dev/null || ! python3 -c "import pytest" 2>/dev/null; then
     echo "Installing ZERG dependencies..."
     pip3 install -q --break-system-packages -e ".[dev]" 2>/dev/null || \
         pip3 install -q --break-system-packages pydantic click rich jsonschema pytest
