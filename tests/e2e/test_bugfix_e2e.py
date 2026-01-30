@@ -145,6 +145,8 @@ class TestE2EMultiLevelExecution:
         retry_events = [c for c in append_event_calls if c[0][0] == "merge_retry"]
         assert len(retry_events) >= 1
 
+    @pytest.mark.e2e
+    @pytest.mark.timeout(60)
     def test_recoverable_error_allows_resume(
         self, mock_full_deps, tmp_path: Path, monkeypatch
     ):

@@ -175,6 +175,8 @@ class TestContainerVolumeMounts:
 class TestContainerLauncherSpawn:
     """Tests for ContainerLauncher.spawn()."""
 
+    @pytest.mark.e2e
+    @pytest.mark.timeout(120)
     def test_launcher_spawn_creates_container(
         self, docker_image: str, tmp_worktree: Path
     ) -> None:
