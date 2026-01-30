@@ -23,16 +23,25 @@ ports:
 quality_gates:
   - name: lint
     command: ruff check .
-    required: false
+    required: true
     timeout: 300
   - name: typecheck
-    command: mypy . --ignore-missing-imports
-    required: false
+    command: mypy . --strict --ignore-missing-imports
+    required: true
     timeout: 300
   - name: test
-    command: pytest -x
+    command: pytest tests/unit/ -x --timeout=30
+    required: true
+    timeout: 600
+  - name: coverage
+    command: pytest tests/unit/ --cov=zerg --cov-fail-under=80 -q --timeout=30
     required: false
     timeout: 600
+    coverage_threshold: 80
+  - name: security
+    command: ruff check . --select S
+    required: false
+    timeout: 120
 
 mcp_servers:
   - filesystem

@@ -6,7 +6,7 @@ and reassigns tasks stranded on stopped/crashed workers.
 
 from __future__ import annotations
 
-from zerg.constants import TaskStatus, WorkerStatus
+from zerg.constants import TaskStatus
 from zerg.levels import LevelController
 from zerg.logging import get_logger
 from zerg.state import StateManager

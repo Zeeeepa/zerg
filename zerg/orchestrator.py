@@ -42,7 +42,7 @@ from zerg.level_coordinator import LevelCoordinator
 from zerg.levels import LevelController
 from zerg.log_writer import StructuredLogWriter
 from zerg.logging import get_logger, setup_structured_logging
-from zerg.merge import MergeCoordinator
+from zerg.merge import MergeCoordinator, MergeFlowResult
 from zerg.metrics import MetricsCollector
 from zerg.parser import TaskParser
 from zerg.plugins import LifecycleEvent, PluginRegistry
@@ -280,7 +280,10 @@ class Orchestrator:
         self._launcher_config._check_container_health(self._workers, self.launcher)
         # Persist state for workers that were marked CRASHED by health check
         for wid, worker in self._workers.items():
-            if worker.status == WorkerStatus.CRASHED and pre_statuses.get(wid) != WorkerStatus.CRASHED:
+            if (
+                worker.status == WorkerStatus.CRASHED
+                and pre_statuses.get(wid) != WorkerStatus.CRASHED
+            ):
                 self.state.set_worker_state(worker)
 
     def _auto_detect_launcher_type(self) -> LauncherType:
@@ -339,7 +342,7 @@ class Orchestrator:
             self._paused = True
         return result
 
-    def _merge_level(self, level: int):  # noqa: ANN202
+    def _merge_level(self, level: int) -> MergeFlowResult:
         return self._level_coord.merge_level(level)
 
     def _rebase_all_workers(self, level: int) -> None:

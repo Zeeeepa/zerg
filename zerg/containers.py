@@ -472,7 +472,7 @@ class ContainerManager:
                 stdout_bytes.decode(),
                 stderr_bytes.decode(),
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
             await proc.wait()
             return 1, "", f"timeout after {timeout}s"
@@ -515,7 +515,7 @@ class ContainerManager:
                 stdout_bytes.decode(),
                 stderr_bytes.decode(),
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
             await proc.wait()
             return 1, "", f"timeout after {timeout}s"

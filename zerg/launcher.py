@@ -854,7 +854,7 @@ class SubprocessLauncher(WorkerLauncher):
 
                 try:
                     await asyncio.wait_for(process.wait(), timeout=10)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     process.kill()
                     await process.wait()
 
@@ -1689,7 +1689,7 @@ class ContainerLauncher(WorkerLauncher):
                 logger.error(f"Docker run failed: {stderr.decode()}")
                 return None
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("Docker run timed out")
             return None
         except Exception as e:
@@ -1744,7 +1744,7 @@ class ContainerLauncher(WorkerLauncher):
                 logger.error(f"Failed to stop container: {stderr.decode()}")
                 return False
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # Force kill on timeout
             kill_proc = await asyncio.create_subprocess_exec(
                 "docker", "kill", container_id,

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
-import inspect
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -178,15 +176,12 @@ def rush(
         # Start execution
         console.print(f"\n[bold]Starting {workers} workers...[/bold]\n")
 
-        result = orchestrator.start(
+        orchestrator.start(
             task_graph_path=task_graph_path,
             worker_count=workers,
             start_level=level,
             dry_run=False,
         )
-        # Support async orchestrator.start() transparently
-        if inspect.iscoroutine(result):
-            asyncio.run(result)
 
         # Show final status
         status = orchestrator.status()

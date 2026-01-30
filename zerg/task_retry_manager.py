@@ -78,23 +78,43 @@ class TaskRetryManager:
             next_retry_at = (datetime.now() + timedelta(seconds=delay)).isoformat()
             new_count = self._state.increment_task_retry(task_id, next_retry_at=next_retry_at)
             self._state.set_task_retry_schedule(task_id, next_retry_at)
-            logger.warning(f"Task {task_id} failed (attempt {new_count}/{self._max_retry_attempts}), will retry in {delay:.0f}s: {error}")
+            logger.warning(
+                f"Task {task_id} failed "
+                f"(attempt {new_count}/{self._max_retry_attempts}), "
+                f"will retry in {delay:.0f}s: {error}"
+            )
             self._state.set_task_status(task_id, "waiting_retry")
             self._state.append_event("task_retry_scheduled", {
-                "task_id": task_id, "worker_id": worker_id, "retry_count": new_count,
-                "backoff_seconds": round(delay), "next_retry_at": next_retry_at, "error": error,
+                "task_id": task_id,
+                "worker_id": worker_id,
+                "retry_count": new_count,
+                "backoff_seconds": round(delay),
+                "next_retry_at": next_retry_at,
+                "error": error,
             })
             if self._structured_writer:
-                self._structured_writer.emit("warn", f"Task {task_id} retry {new_count} scheduled in {delay:.0f}s",
-                    event=LogEvent.TASK_FAILED, data={"task_id": task_id, "backoff_seconds": round(delay)})
+                self._structured_writer.emit(
+                    "warn",
+                    f"Task {task_id} retry {new_count} scheduled in {delay:.0f}s",
+                    event=LogEvent.TASK_FAILED,
+                    data={"task_id": task_id, "backoff_seconds": round(delay)},
+                )
             return True
         else:
-            logger.error(f"Task {task_id} failed after {retry_count} retries: {error}")
+            logger.error(
+                f"Task {task_id} failed after {retry_count} retries: {error}"
+            )
             self._levels.mark_task_failed(task_id, error)
-            self._state.set_task_status(task_id, TaskStatus.FAILED, worker_id=worker_id,
-                error=f"Failed after {retry_count} retries: {error}")
+            self._state.set_task_status(
+                task_id, TaskStatus.FAILED, worker_id=worker_id,
+                error=f"Failed after {retry_count} retries: {error}",
+            )
             self._state.append_event("task_failed_permanent", {
-                "task_id": task_id, "worker_id": worker_id, "retry_count": retry_count, "error": error})
+                "task_id": task_id,
+                "worker_id": worker_id,
+                "retry_count": retry_count,
+                "error": error,
+            })
             return False
 
     def retry_task(self, task_id: str) -> bool:
@@ -131,7 +151,13 @@ class TaskRetryManager:
         logger.info(f"Queued {len(retried)} tasks for retry")
         return retried
 
-    def verify_with_retry(self, task_id: str, command: str, timeout: int = 60, max_retries: int | None = None) -> bool:
+    def verify_with_retry(
+        self,
+        task_id: str,
+        command: str,
+        timeout: int = 60,
+        max_retries: int | None = None,
+    ) -> bool:
         """Verify a task with retry logic.
 
         Args:
@@ -151,6 +177,9 @@ class TaskRetryManager:
             if result.success:
                 return True
             if attempt < max_attempts:
-                logger.warning(f"Verification failed for {task_id} (attempt {attempt + 1}/{max_attempts + 1}), retrying...")
+                logger.warning(
+                    f"Verification failed for {task_id} "
+                    f"(attempt {attempt + 1}/{max_attempts + 1}), retrying..."
+                )
                 time.sleep(1)
         return False
