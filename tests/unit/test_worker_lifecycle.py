@@ -402,8 +402,9 @@ class TestWorkerProtocolStateWrites:
         # Make claim_next_task return None immediately (no tasks)
         mock_state_manager.get_tasks_by_status.return_value = []
 
-        with pytest.raises(SystemExit) as exc_info:
-            protocol.start()
+        with patch.object(protocol, "claim_next_task", return_value=None):
+            with pytest.raises(SystemExit) as exc_info:
+                protocol.start()
         assert exc_info.value.code == ExitCode.SUCCESS
 
         # Find set_worker_state calls with RUNNING status
@@ -420,8 +421,9 @@ class TestWorkerProtocolStateWrites:
         """Clean exit from start() writes STOPPED status."""
         mock_state_manager.get_tasks_by_status.return_value = []
 
-        with pytest.raises(SystemExit) as exc_info:
-            protocol.start()
+        with patch.object(protocol, "claim_next_task", return_value=None):
+            with pytest.raises(SystemExit) as exc_info:
+                protocol.start()
         assert exc_info.value.code == ExitCode.SUCCESS
 
         # Last set_worker_state call should be STOPPED
