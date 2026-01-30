@@ -196,7 +196,7 @@ class TestCreateTaskGraphTemplate:
     def test_task_graph_respects_min_minutes(self, tmp_path: Path) -> None:
         """Test that min_minutes parameter is used."""
         graph_path = tmp_path / "task-graph.json"
-        create_task_graph_template(graph_path, "feat", min_minutes=10)
+        create_task_graph_template(graph_path, "feat")
 
         with open(graph_path) as f:
             data = json.load(f)
