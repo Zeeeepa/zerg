@@ -57,24 +57,29 @@ class StateManager:
 
         Supports reentrant calls (nested _atomic_update contexts skip
         reload/save -- the outermost context handles both).
+
+        The in-process RLock (self._lock) is held for the entire duration
+        including the yield, so threads sharing this StateManager instance
+        are fully serialized. The RLock is reentrant, so nested calls from
+        the same thread (e.g. claim_task -> set_task_status) work correctly.
         """
-        if self._file_lock_depth > 0:
-            # Already holding file lock (nested/reentrant call)
-            self._file_lock_depth += 1
+        with self._lock:
+            if self._file_lock_depth > 0:
+                # Already holding file lock (nested/reentrant call)
+                self._file_lock_depth += 1
+                try:
+                    yield
+                finally:
+                    self._file_lock_depth -= 1
+                return
+
+            lock_path = self._state_file.with_suffix(".lock")
+            lock_fd = open(lock_path, "w")  # noqa: SIM115
             try:
-                yield
-            finally:
-                self._file_lock_depth -= 1
-            return
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+                self._file_lock_depth = 1
 
-        lock_path = self._state_file.with_suffix(".lock")
-        lock_fd = open(lock_path, "w")  # noqa: SIM115
-        try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
-            self._file_lock_depth = 1
-
-            # Reload latest state from disk under lock
-            with self._lock:
+                # Reload latest state from disk under lock
                 if self._state_file.exists():
                     try:
                         with open(self._state_file) as f:
@@ -85,17 +90,17 @@ class StateManager:
                 elif not self._state:
                     self._state = self._create_initial_state()
 
-            yield
+                yield
 
-            # Save to disk under lock
-            self._raw_save()
-        finally:
-            self._file_lock_depth = 0
-            try:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            except Exception as e:
-                logger.debug(f"Lock release failed: {e}")
-            lock_fd.close()
+                # Save to disk under lock
+                self._raw_save()
+            finally:
+                self._file_lock_depth = 0
+                try:
+                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                except Exception as e:
+                    logger.debug(f"Lock release failed: {e}")
+                lock_fd.close()
 
     def _raw_save(self) -> None:
         """Write state to disk. Called under _atomic_update file lock."""
