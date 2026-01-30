@@ -651,3 +651,59 @@ def _load_task_graph(path: Path) -> dict[str, Any]:
     with open(path) as f:
         result: dict[str, Any] = json.load(f)
         return result
+
+
+def _build_design_manifest(feature: str, task_data: dict[str, Any]) -> dict[str, Any]:
+    """Build a design task manifest from task graph data.
+
+    Pure data transformer — no file I/O. Converts task-graph entries into
+    a manifest format that mirrors Claude Task fields (subject, description,
+    active_form, dependencies).
+
+    Args:
+        feature: Feature name.
+        task_data: Parsed task-graph.json data containing a 'tasks' list.
+
+    Returns:
+        Dict with 'feature', 'generated' (ISO timestamp), and 'tasks' list.
+    """
+    manifest_tasks: list[dict[str, Any]] = []
+
+    for task in task_data.get("tasks", []):
+        level = task.get("level", 0)
+        title = task.get("title", "Untitled")
+
+        # Build file ownership summary
+        files = task.get("files", {})
+        ownership_parts: list[str] = []
+        for op in ("create", "modify", "read"):
+            file_list = files.get(op, [])
+            if file_list:
+                ownership_parts.append(f"{op}: {', '.join(file_list)}")
+        file_summary = "Files — " + "; ".join(ownership_parts) if ownership_parts else ""
+
+        # Build description from task description + file ownership + verification
+        desc_parts: list[str] = []
+        task_desc = task.get("description", "")
+        if task_desc:
+            desc_parts.append(task_desc)
+        if file_summary:
+            desc_parts.append(file_summary)
+        verification = task.get("verification", {})
+        verify_cmd = verification.get("command", "")
+        if verify_cmd:
+            desc_parts.append(f"Verify: {verify_cmd}")
+
+        entry: dict[str, Any] = {
+            "subject": f"[L{level}] {title}",
+            "description": "\n".join(desc_parts),
+            "active_form": f"Executing {title}",
+            "dependencies": list(task.get("dependencies", [])),
+        }
+        manifest_tasks.append(entry)
+
+    return {
+        "feature": feature,
+        "generated": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "tasks": manifest_tasks,
+    }
