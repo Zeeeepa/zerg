@@ -1,5 +1,6 @@
 """State persistence and management for ZERG."""
 
+import asyncio
 import contextlib
 import fcntl
 import json
@@ -177,6 +178,18 @@ class StateManager:
             except Exception as e:
                 logger.debug(f"Lock release failed: {e}")
             lock_fd.close()
+
+    async def load_async(self) -> dict[str, Any]:
+        """Async version of load() - wraps blocking file I/O in thread.
+
+        Returns:
+            State dictionary
+        """
+        return await asyncio.to_thread(self.load)
+
+    async def save_async(self) -> None:
+        """Async version of save() - wraps blocking file I/O in thread."""
+        await asyncio.to_thread(self.save)
 
     def _create_initial_state(self) -> dict[str, Any]:
         """Create initial state structure.
