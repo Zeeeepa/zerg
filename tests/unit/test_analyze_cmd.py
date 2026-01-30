@@ -54,7 +54,7 @@ class TestCheckType:
 
     def test_all_check_types_have_values(self) -> None:
         """Test that all check types have string values."""
-        expected = {"lint", "complexity", "coverage", "security"}
+        expected = {"lint", "complexity", "coverage", "security", "performance"}
         actual = {ct.value for ct in CheckType}
         assert actual == expected
 
@@ -517,11 +517,12 @@ class TestAnalyzeCommandClass:
         checks = cmd.supported_checks()
 
         assert isinstance(checks, list)
-        assert len(checks) == 4
+        assert len(checks) == 5
         assert "lint" in checks
         assert "complexity" in checks
         assert "coverage" in checks
         assert "security" in checks
+        assert "performance" in checks
 
     def test_run_single_check_without_mock(self) -> None:
         """Test running a single check directly (lines 223-234)."""
