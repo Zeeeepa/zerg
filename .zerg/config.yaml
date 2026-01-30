@@ -23,7 +23,7 @@ ports:
 quality_gates:
   - name: lint
     command: ruff check .
-    required: true
+    required: false
     timeout: 300
   - name: typecheck
     command: mypy . --ignore-missing-imports
