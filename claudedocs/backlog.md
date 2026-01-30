@@ -1,6 +1,6 @@
 # ZERG Development Backlog
 
-**Updated**: 2026-01-30
+**Updated**: 2026-01-31
 
 ## Completed
 
@@ -17,9 +17,9 @@
 | 9 | Troubleshoot enhancement: World-class debugger — multi-language error intel (Python/JS/Go/Rust/Java/C++), Bayesian hypothesis engine (33 patterns), cross-worker log correlation, code-aware recovery, environment diagnostics. 7 new modules, 383 tests. | 2026-01-30 | 53a0a97..4d1e407 |
 | 10 | `/z` shortcut alias: `install_commands.py` generates `z:` symlinks for all `zerg:` commands. Both prefixes work with full parity. | 2026-01-30 | — |
 | 11 | Rename troubleshoot → debug: Cascaded rename across all code, commands (.zerg/ scripts, slash commands, CLI), tests, and documentation project-wide. | 2026-01-30 | — |
+| 12 | Performance analysis `zerg analyze --performance`: 140-factor audit across 16 categories, 11 optional tool adapters (semgrep, radon, lizard, vulture, jscpd, deptry, pipdeptree, dive, hadolint, trivy, cloc), stack detection, graceful degradation, 4 output formats (Rich/JSON/SARIF/Markdown). New `zerg/performance/` submodule (20 files), 95 tests. | 2026-01-30 | 6549ca3..b7d4811 |
 
 ## Backlog
 
 | # | Area | Description | Effort | Status |
 |---|------|-------------|--------|--------|
-| 12 | Performance analysis for `zerg analyze --performance` | Add `--performance` option to `zerg analyze` and `/zerg:analyze` that runs a comprehensive performance audit covering 140 factors across 16 categories (CPU/compute, memory, disk I/O, network I/O, database, caching, concurrency, code-level patterns, abstraction/structure, dependencies, code volume, error handling, container image, container runtime, orchestration, observability, architecture, AI code detection, security patterns). Static analysis via `radon` (cyclomatic complexity, maintainability index), `lizard` (function complexity/LOC), `vulture` (dead code), `semgrep` (perf anti-patterns: blocking I/O in async, N+1 queries, string concat in loops, regex in hot paths, missing timeouts, swallowed exceptions, sequential awaits, collection type mismatches, unbounded collections, etc.), `jscpd`/PMD CPD (copy-paste detection), `deptry` (unused/missing deps), `pipdeptree` (transitive dep analysis). Container analysis via `dive` (layer efficiency, image size), `hadolint` (Dockerfile linting), `trivy` (CVE scanning, secrets, misconfig). For factors not coverable by static tools (cache locality, branch prediction, NUMA, lock contention, etc.), generate an advisory checklist with descriptions and manual review guidance. Output: structured JSON report + rich CLI summary with severity ratings per category. See `claudedocs/performance_evaluation_factors.json` for the full factor catalog. | Large | Open |
