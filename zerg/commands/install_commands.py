@@ -31,8 +31,8 @@ def _get_source_dir() -> Path:
         resolved = Path(str(pkg_dir))
         if resolved.is_dir():
             return resolved
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Install check failed: {e}")
 
     # Fallback: relative to this file
     fallback = Path(__file__).resolve().parent.parent / "data" / "commands"

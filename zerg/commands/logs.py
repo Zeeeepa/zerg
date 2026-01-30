@@ -277,7 +277,8 @@ def _get_launcher_type() -> str:
         from zerg.config import ZergConfig
         config = ZergConfig.load()
         return config.workers.launcher_type
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Mode detection failed: {e}")
         return "subprocess"
 
 

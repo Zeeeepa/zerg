@@ -792,8 +792,8 @@ class WorkerProtocol:
                     diff_text = diff_result.stdout + unstaged.stdout
                     if diff_text:
                         artifact.capture_git_diff(diff_text)
-                except Exception:
-                    pass  # Best-effort artifact capture
+                except Exception as e:
+                    logger.debug(f"Best-effort artifact capture failed: {e}")
 
             # BF-009: Record HEAD before commit for verification
             head_before = self.git.current_commit()

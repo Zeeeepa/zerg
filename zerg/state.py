@@ -92,8 +92,8 @@ class StateManager:
             self._file_lock_depth = 0
             try:
                 fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Lock release failed: {e}")
             lock_fd.close()
 
     def _raw_save(self) -> None:
@@ -151,8 +151,8 @@ class StateManager:
         finally:
             try:
                 fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Lock release failed: {e}")
             lock_fd.close()
 
     def save(self) -> None:
@@ -168,8 +168,8 @@ class StateManager:
         finally:
             try:
                 fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Lock release failed: {e}")
             lock_fd.close()
 
     def _create_initial_state(self) -> dict[str, Any]:

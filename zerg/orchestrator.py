@@ -673,8 +673,8 @@ class Orchestrator:
                     event_type=PluginHookEvent.MERGE_COMPLETE.value,
                     data={"level": level, "merge_commit": merge_result.merge_commit},
                 ))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Status update failed: {e}")
 
             # Rebase worker branches onto merged base
             self._rebase_all_workers(level)

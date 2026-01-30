@@ -263,8 +263,8 @@ class ReviewCommand:
                 content = path.read_text(encoding="utf-8")
                 file_items = self.analyzer.analyze(content, filepath)
                 items.extend(file_items)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"File read failed: {e}")
 
         return items
 
@@ -312,8 +312,8 @@ class ReviewCommand:
                         )
                         total_issues += 1
 
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"File read failed: {e}")
 
         details_lines.append(f"Files reviewed: {len(files)}")
         details_lines.append(f"Total lines: {total_lines}")
@@ -392,8 +392,8 @@ def _collect_files(path: str | None, mode: str) -> list[str]:
             )
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip().split("\n")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Review check failed: {e}")
 
         path = "."
 

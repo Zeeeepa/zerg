@@ -691,8 +691,8 @@ def _load_stacktrace_file(filepath: str) -> str:
         path = Path(filepath)
         if path.exists():
             return path.read_text(encoding="utf-8")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Diagnostic check failed: {e}")
     return ""
 
 
@@ -776,8 +776,8 @@ def troubleshoot(
                     console.print(
                         f"[dim]Auto-detected feature: {feature}[/dim]"
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Diagnostic check failed: {e}")
 
         # If only feature given (no error), set a default symptom
         if not error_message and not stack_trace_content and feature:

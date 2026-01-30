@@ -119,8 +119,8 @@ class FrameworkDetector:
                     detected.append(Framework.VITEST)
                 if "mocha" in deps and Framework.MOCHA not in detected:
                     detected.append(Framework.MOCHA)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Config loading failed: {e}")
 
         return detected
 

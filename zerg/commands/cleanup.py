@@ -135,8 +135,8 @@ def discover_features() -> list[str]:
                 parts = branch.split("/")
                 if len(parts) >= 2:
                     features.add(parts[1])
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Branch listing failed: {e}")
 
     return sorted(features)
 
@@ -183,8 +183,8 @@ def create_cleanup_plan(
                 for branch in branches:
                     if branch.startswith(f"zerg/{feature}/"):
                         plan["branches"].append(branch)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Container listing failed: {e}")
 
         # Find containers
         plan["containers"].append(f"zerg-worker-{feature}-*")

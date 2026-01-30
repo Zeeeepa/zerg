@@ -363,7 +363,8 @@ def _build_docker_image() -> None:
                 )
             else:
                 console.print("[green]Image built: zerg-worker[/green]")
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Image size check failed: {e}")
             console.print("[green]Image built: zerg-worker[/green]")
     else:
         console.print("[red]Docker build failed[/red]")
