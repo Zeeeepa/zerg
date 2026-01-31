@@ -69,3 +69,20 @@ On completion, call TaskUpdate:
 - 0: Build successful
 - 1: Build failed
 - 2: Configuration error
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:build — Build orchestration with error recovery.
+
+Flags:
+  --target <name>     Build target (default: all)
+  --mode <dev|staging|prod>
+                      Build mode
+  --clean             Clean before building
+  --watch             Watch mode for continuous builds
+  --retry <n>         Number of retries on failure (default: 3)
+  --help              Show this help message
+```

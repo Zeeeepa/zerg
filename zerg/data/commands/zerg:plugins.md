@@ -1,4 +1,4 @@
-# ZERG Plugin System
+
 
 Extend ZERG with custom quality gates, lifecycle hooks, and worker launchers.
 
@@ -231,6 +231,13 @@ Plugin operations should write state to both:
 
 If Task system and state JSON disagree, Task system wins.
 
-<!-- SPLIT: core=zerg:plugins.core.md details=zerg:plugins.details.md -->
-<!-- For detailed examples and templates, see zerg:plugins.details.md -->
+## Help
 
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:plugins — Extend ZERG with custom quality gates, lifecycle hooks, and worker launchers.
+
+Flags:
+  --help                Show this help message
+```

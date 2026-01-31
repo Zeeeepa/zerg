@@ -78,6 +78,18 @@ On completion, call TaskUpdate:
   - taskId: (the Claude Task ID)
   - status: "completed"
 
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:review — Two-stage code review workflow.
+
+Flags:
+  --mode MODE           Review mode: prepare|self|receive|full (default: full)
+  --help                Show this help message
+```
+
 ## Exit Codes
 
 - 0: Review passed

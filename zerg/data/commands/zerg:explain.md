@@ -124,4 +124,21 @@ On completion, call TaskUpdate:
 - 1: Target not found or cannot be resolved
 - 2: doc_engine import failure (warning only, falls back)
 
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:explain — Educational code explanations with 4 progressive depth layers, powered by doc_engine AST extractors.
+
+Flags:
+  --scope function|file|module|system
+                    Override auto-detection of explanation scope
+  --save            Write output to claudedocs/explanations/{target}.md
+  --format text|md|json
+                    Output format (default: text, md when --save)
+  --no-diagrams     Skip Mermaid diagram generation
+  --help            Show this help message
+```
+
 <!-- SPLIT: core=zerg:explain.core.md details=zerg:explain.details.md -->

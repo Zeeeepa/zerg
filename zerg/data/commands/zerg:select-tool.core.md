@@ -134,4 +134,21 @@ On completion:  TaskUpdate status "completed" with recommended tools in notes
 - [ ] Output rendered in requested `--format`
 - [ ] Task tracking lifecycle completed (create -> in_progress -> completed)
 
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:select-tool — Intelligent tool routing across MCP servers, native tools, and Task agent subtypes.
+
+Flags:
+  [task description]    Free-text description of what needs to be done (required)
+  --domain <value>      Override auto-detection (ui|backend|infra|docs|test|security|perf)
+  --format <value>      Output format: text|json|md (default: text)
+  --verbose             Show scoring breakdown per dimension
+  --no-agents           Exclude Task agent recommendations
+  --no-mcp             Exclude MCP server recommendations
+  --help                Show this help message
+```
+
 <!-- SPLIT: core=zerg:select-tool.core.md details=zerg:select-tool.details.md -->

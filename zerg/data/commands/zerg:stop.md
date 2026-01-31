@@ -197,3 +197,18 @@ zerg rush --resume
 # Full cleanup
 zerg cleanup --feature my-feature
 ```
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:stop — Stop ZERG workers gracefully or forcefully.
+
+Flags:
+  -f, --feature TEXT     Feature to stop (auto-detected)
+  -w, --worker INTEGER   Stop specific worker only
+  --force                Force immediate termination (no checkpoint)
+  --timeout INTEGER      Graceful shutdown timeout in seconds (default: 30)
+  --help                 Show this help message
+```

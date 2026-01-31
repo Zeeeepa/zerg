@@ -1,3 +1,4 @@
+
 # ZERG Status
 
 Display current factory execution status.
@@ -71,6 +72,35 @@ zerg status --dashboard -i 2      # Custom refresh interval
 zerg status --watch               # Lighter text-based refresh
 ```
 
+## Context Budget
+
+Show context engineering stats when available:
+
+```
+CONTEXT BUDGET
+──────────────────────────────────────────────
+Split Commands:  {n} files split (core + details)
+  Savings:       ~{tokens} tokens per worker session
+
+Per-Task Context:
+  Tasks with context:  {n}/{total} (populated at design time)
+  Tasks using fallback: {n}/{total} (full spec loaded)
+  Avg context size:    {n} tokens (budget: {limit})
+
+Security Rules:
+  Filtered:     {lang} ({n} tasks), {lang} ({n} tasks)
+  Core only:    {n} tasks (OWASP rules only)
+  Savings:      ~{tokens} tokens vs loading all rules
+──────────────────────────────────────────────
+```
+
+### Context Budget Data Sources
+
+- Split file count: `ls zerg/data/commands/*.core.md | wc -l`
+- Task context: read `task.context` field from task-graph.json
+- Security filtering: check task file extensions vs loaded rules
+- Budget config: `ContextEngineeringConfig.task_context_budget_tokens`
+
 ## Data Sources
 
 ### Task Status from Native Tasks
@@ -106,7 +136,18 @@ On invocation: TaskCreate (subject: `[Status] Check status: {feature}`)
 Immediately: TaskUpdate status "in_progress"
 On completion: TaskUpdate status "completed"
 
-<!-- SPLIT: This file has been split for context efficiency.
-  - Core: zerg:status.core.md (essential instructions, Task tool refs)
-  - Details: zerg:status.details.md (dashboard formatting, CLI options, JSON schema, examples)
--->
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:status — Display current factory execution status.
+
+Flags:
+  --tasks               Show all tasks with their status
+  --dashboard           Full TUI dashboard (CLI only)
+  -i, --interval N      Custom refresh interval for dashboard
+  --watch               Lighter text-based refresh (CLI only)
+  --json                Output as JSON
+  --help                Show this help message
+```

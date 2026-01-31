@@ -137,4 +137,18 @@ When all levels are complete, display completion summary and verify via **TaskLi
 
 Call **TaskList** to retrieve all tasks. For each task assigned to this worker, confirm status is "completed". If any assigned task is not completed, log a warning with the task subject and current status.
 
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:worker — Execute assigned ZERG tasks in parallel with other workers.
+
+Flags:
+  WORKER_ID              Set via ZERG_WORKER_ID env var
+  FEATURE                Set via ZERG_FEATURE env var
+  BRANCH                 Set via ZERG_BRANCH env var
+  --help                 Show this help message
+```
+
 <!-- SPLIT_REF: details in zerg:worker.details.md -->

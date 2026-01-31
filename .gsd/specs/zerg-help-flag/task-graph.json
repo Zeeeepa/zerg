@@ -1,0 +1,181 @@
+{
+  "feature": "zerg-help-flag",
+  "version": "2.0",
+  "generated": "2026-01-31T23:45:00Z",
+  "total_tasks": 7,
+  "estimated_duration_minutes": 25,
+  "max_parallelization": 5,
+  "critical_path_minutes": 20,
+
+  "tasks": [
+    {
+      "id": "HELP-L1-001",
+      "title": "Add --help to batch 1: analyze, build, cleanup, debug, design",
+      "description": "Add --help flag documentation and pre-flight help check to 5 commands. For split commands (debug, design), modify .core.md. For standalone (analyze, build, cleanup), modify .md. Each command gets: (1) --help in flags/usage section, (2) help check in pre-flight that outputs formatted help and exits.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": [],
+        "modify": ["zerg/data/commands/zerg:analyze.md", "zerg/data/commands/zerg:build.md", "zerg/data/commands/zerg:cleanup.md", "zerg/data/commands/zerg:debug.core.md", "zerg/data/commands/zerg:design.core.md"],
+        "read": []
+      },
+      "acceptance_criteria": ["All 5 files contain --help flag", "All 5 files have help check in pre-flight"],
+      "verification": {
+        "command": "for f in zerg/data/commands/zerg:analyze.md zerg/data/commands/zerg:build.md zerg/data/commands/zerg:cleanup.md zerg/data/commands/zerg:debug.core.md zerg/data/commands/zerg:design.core.md; do grep -q '\\-\\-help' \"$f\" || echo \"MISSING: $f\"; done",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 5,
+      "critical_path": true
+    },
+    {
+      "id": "HELP-L1-002",
+      "title": "Add --help to batch 2: document, estimate, explain, git, index",
+      "description": "Add --help flag documentation and pre-flight help check to 5 commands. For split commands (estimate, explain), modify .core.md. For standalone (document, git, index), modify .md.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": [],
+        "modify": ["zerg/data/commands/zerg:document.md", "zerg/data/commands/zerg:estimate.core.md", "zerg/data/commands/zerg:explain.core.md", "zerg/data/commands/zerg:git.md", "zerg/data/commands/zerg:index.md"],
+        "read": []
+      },
+      "acceptance_criteria": ["All 5 files contain --help flag", "All 5 files have help check in pre-flight"],
+      "verification": {
+        "command": "for f in zerg/data/commands/zerg:document.md zerg/data/commands/zerg:estimate.core.md zerg/data/commands/zerg:explain.core.md zerg/data/commands/zerg:git.md zerg/data/commands/zerg:index.md; do grep -q '\\-\\-help' \"$f\" || echo \"MISSING: $f\"; done",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 5,
+      "critical_path": true
+    },
+    {
+      "id": "HELP-L1-003",
+      "title": "Add --help to batch 3: init, logs, merge, plan, plugins",
+      "description": "Add --help flag documentation and pre-flight help check to 5 commands. For split commands (init, merge, plan, plugins), modify .core.md. For standalone (logs), modify .md.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": [],
+        "modify": ["zerg/data/commands/zerg:init.core.md", "zerg/data/commands/zerg:logs.md", "zerg/data/commands/zerg:merge.core.md", "zerg/data/commands/zerg:plan.core.md", "zerg/data/commands/zerg:plugins.core.md"],
+        "read": []
+      },
+      "acceptance_criteria": ["All 5 files contain --help flag", "All 5 files have help check in pre-flight"],
+      "verification": {
+        "command": "for f in zerg/data/commands/zerg:init.core.md zerg/data/commands/zerg:logs.md zerg/data/commands/zerg:merge.core.md zerg/data/commands/zerg:plan.core.md zerg/data/commands/zerg:plugins.core.md; do grep -q '\\-\\-help' \"$f\" || echo \"MISSING: $f\"; done",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 5,
+      "critical_path": true
+    },
+    {
+      "id": "HELP-L1-004",
+      "title": "Add --help to batch 4: refactor, retry, review, rush, security",
+      "description": "Add --help flag documentation and pre-flight help check to 5 commands. For split commands (rush), modify .core.md. For standalone (refactor, retry, review, security), modify .md.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": [],
+        "modify": ["zerg/data/commands/zerg:refactor.md", "zerg/data/commands/zerg:retry.md", "zerg/data/commands/zerg:review.md", "zerg/data/commands/zerg:rush.core.md", "zerg/data/commands/zerg:security.md"],
+        "read": []
+      },
+      "acceptance_criteria": ["All 5 files contain --help flag", "All 5 files have help check in pre-flight"],
+      "verification": {
+        "command": "for f in zerg/data/commands/zerg:refactor.md zerg/data/commands/zerg:retry.md zerg/data/commands/zerg:review.md zerg/data/commands/zerg:rush.core.md zerg/data/commands/zerg:security.md; do grep -q '\\-\\-help' \"$f\" || echo \"MISSING: $f\"; done",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 5,
+      "critical_path": true
+    },
+    {
+      "id": "HELP-L1-005",
+      "title": "Add --help to batch 5: select-tool, status, stop, test, worker",
+      "description": "Add --help flag documentation and pre-flight help check to 5 commands. For split commands (select-tool, status, worker), modify .core.md. For standalone (stop, test), modify .md.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": [],
+        "modify": ["zerg/data/commands/zerg:select-tool.core.md", "zerg/data/commands/zerg:status.core.md", "zerg/data/commands/zerg:stop.md", "zerg/data/commands/zerg:test.md", "zerg/data/commands/zerg:worker.core.md"],
+        "read": []
+      },
+      "acceptance_criteria": ["All 5 files contain --help flag", "All 5 files have help check in pre-flight"],
+      "verification": {
+        "command": "for f in zerg/data/commands/zerg:select-tool.core.md zerg/data/commands/zerg:status.core.md zerg/data/commands/zerg:stop.md zerg/data/commands/zerg:test.md zerg/data/commands/zerg:worker.core.md; do grep -q '\\-\\-help' \"$f\" || echo \"MISSING: $f\"; done",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 5,
+      "critical_path": true
+    },
+    {
+      "id": "HELP-L2-001",
+      "title": "Regenerate parent files for split commands",
+      "description": "For all 12 split commands (debug, design, estimate, explain, init, merge, plan, plugins, rush, select-tool, status, worker), copy the updated .core.md content to the parent .md file, replacing the top split marker from 'core, parent:' to 'core=X details=Y'.",
+      "phase": "integration",
+      "level": 2,
+      "dependencies": ["HELP-L1-001", "HELP-L1-002", "HELP-L1-003", "HELP-L1-004", "HELP-L1-005"],
+      "files": {
+        "create": [],
+        "modify": ["zerg/data/commands/zerg:debug.md", "zerg/data/commands/zerg:design.md", "zerg/data/commands/zerg:estimate.md", "zerg/data/commands/zerg:explain.md", "zerg/data/commands/zerg:init.md", "zerg/data/commands/zerg:merge.md", "zerg/data/commands/zerg:plan.md", "zerg/data/commands/zerg:plugins.md", "zerg/data/commands/zerg:rush.md", "zerg/data/commands/zerg:select-tool.md", "zerg/data/commands/zerg:status.md", "zerg/data/commands/zerg:worker.md"],
+        "read": ["zerg/data/commands/zerg:debug.core.md", "zerg/data/commands/zerg:design.core.md", "zerg/data/commands/zerg:estimate.core.md", "zerg/data/commands/zerg:explain.core.md", "zerg/data/commands/zerg:init.core.md", "zerg/data/commands/zerg:merge.core.md", "zerg/data/commands/zerg:plan.core.md", "zerg/data/commands/zerg:plugins.core.md", "zerg/data/commands/zerg:rush.core.md", "zerg/data/commands/zerg:select-tool.core.md", "zerg/data/commands/zerg:status.core.md", "zerg/data/commands/zerg:worker.core.md"]
+      },
+      "acceptance_criteria": ["All 12 parent files updated with --help content matching their core files"],
+      "verification": {
+        "command": "for cmd in debug design estimate explain init merge plan plugins rush select-tool status worker; do grep -q '\\-\\-help' \"zerg/data/commands/zerg:${cmd}.md\" || echo \"MISSING: $cmd\"; done",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 5,
+      "critical_path": true
+    },
+    {
+      "id": "HELP-L3-001",
+      "title": "Verify all commands have --help and run tests",
+      "description": "Verify all 25 primary command files contain --help. Verify all core files have help check in pre-flight. Run test suite for regressions.",
+      "phase": "quality",
+      "level": 3,
+      "dependencies": ["HELP-L2-001"],
+      "files": {
+        "create": [],
+        "modify": [],
+        "read": []
+      },
+      "acceptance_criteria": ["All 25 command files contain --help", "No test regressions"],
+      "verification": {
+        "command": "count=$(grep -rl '\\-\\-help' zerg/data/commands/zerg:*.md | grep -v '\\.core\\.\\.\\|\\.details\\.' | wc -l); echo \"$count/25 commands have --help\" && python -m pytest tests/ -x -q --ignore=tests/test_doc_engine.py 2>&1 | tail -5",
+        "timeout_seconds": 600
+      },
+      "estimate_minutes": 5,
+      "critical_path": true
+    }
+  ],
+
+  "levels": {
+    "1": {
+      "name": "foundation",
+      "tasks": ["HELP-L1-001", "HELP-L1-002", "HELP-L1-003", "HELP-L1-004", "HELP-L1-005"],
+      "parallel": true,
+      "estimated_minutes": 5,
+      "depends_on_levels": []
+    },
+    "2": {
+      "name": "integration",
+      "tasks": ["HELP-L2-001"],
+      "parallel": false,
+      "estimated_minutes": 5,
+      "depends_on_levels": [1]
+    },
+    "3": {
+      "name": "quality",
+      "tasks": ["HELP-L3-001"],
+      "parallel": false,
+      "estimated_minutes": 5,
+      "depends_on_levels": [2]
+    }
+  },
+
+  "conflict_matrix": {
+    "description": "No file ownership conflicts — each file modified by exactly one L1 task, L2 modifies different files than L1",
+    "conflicts": []
+  }
+}

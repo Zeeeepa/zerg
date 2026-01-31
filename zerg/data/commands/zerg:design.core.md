@@ -566,3 +566,14 @@ Reply with:
 - User has explicitly approved
 - Claude Tasks created for all tasks with correct dependencies
 
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:design — Generate technical architecture and prepare for parallel execution.
+
+Flags:
+  --help              Show this help message
+```
+

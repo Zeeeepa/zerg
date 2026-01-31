@@ -226,3 +226,28 @@ zerg logs --aggregate --json > logs.jsonl
 # Clean up old logs
 zerg cleanup --logs
 ```
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:logs — Stream, filter, and aggregate worker logs for debugging and monitoring.
+
+Flags:
+  WORKER_ID              Optional worker ID to filter logs
+  -f, --feature TEXT     Feature name (auto-detected)
+  -n, --tail INTEGER     Number of lines to show (default: 100)
+  --follow               Stream new logs continuously
+  -l, --level LEVEL      Filter by log level: debug|info|warn|error
+  --json                 Output raw JSON format
+  --aggregate            Merge all worker JSONL logs by timestamp
+  --task TEXT            Filter to specific task ID
+  --artifacts TEXT       Show artifact file contents for a task
+  --phase TEXT           Filter by execution phase (claim/execute/verify/commit/cleanup)
+  --event TEXT           Filter by event type (task_started, task_completed, etc.)
+  --since TEXT           Only entries after this ISO8601 timestamp
+  --until TEXT           Only entries before this ISO8601 timestamp
+  --search TEXT          Text search in messages
+  --help                Show this help message
+```

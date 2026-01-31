@@ -94,3 +94,23 @@ On completion, call TaskUpdate:
 - 0: Operation successful
 - 1: Operation failed
 - 2: Tests must pass (for finish)
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:git — Git operations with intelligent commits and finish workflow.
+
+Flags:
+  --action commit|branch|merge|sync|history|finish
+                    Git action to perform (required)
+  --push            Push after operation
+  --base main       Base branch for finish/merge (default: main)
+  --name NAME       Branch name (for branch action)
+  --branch BRANCH   Branch to merge (for merge action)
+  --strategy STRATEGY
+                    Merge strategy (for merge action)
+  --since TAG       Starting point (for history action)
+  --help            Show this help message
+```

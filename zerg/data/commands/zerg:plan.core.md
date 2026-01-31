@@ -113,3 +113,16 @@ Present requirements for approval. User replies with:
 - All open questions resolved or accepted
 - User has explicitly approved with "APPROVED"
 - Infrastructure needs identified and documented
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:plan — Capture complete requirements for a feature.
+
+Flags:
+  -s, --socratic        Use structured 3-round discovery mode
+  --rounds N            Number of rounds (default: 3, max: 5)
+  --help                Show this help message
+```

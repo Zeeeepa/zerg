@@ -230,3 +230,14 @@ Plugin operations should write state to both:
 2. **State JSON** (supplementary) — `.zerg/state/plugins.json`
 
 If Task system and state JSON disagree, Task system wins.
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:plugins — Extend ZERG with custom quality gates, lifecycle hooks, and worker launchers.
+
+Flags:
+  --help                Show this help message
+```

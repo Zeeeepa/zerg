@@ -135,3 +135,19 @@ For each task:
 On invocation: TaskCreate (subject: `[Status] Check status: {feature}`)
 Immediately: TaskUpdate status "in_progress"
 On completion: TaskUpdate status "completed"
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:status — Display current factory execution status.
+
+Flags:
+  --tasks               Show all tasks with their status
+  --dashboard           Full TUI dashboard (CLI only)
+  -i, --interval N      Custom refresh interval for dashboard
+  --watch               Lighter text-based refresh (CLI only)
+  --json                Output as JSON
+  --help                Show this help message
+```

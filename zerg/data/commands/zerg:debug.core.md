@@ -83,3 +83,25 @@ Always output findings using the structured templates in the details file.
 Be specific: include file paths, line numbers, task IDs, worker IDs.
 Quantify: "3 of 12 tasks failed" not "some tasks failed".
 Prioritize: address the root cause, not symptoms.
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:debug — Deep diagnostic investigation for ZERG execution issues.
+
+Flags:
+  -f, --feature <name>
+                      Feature to investigate (auto-detected if omitted)
+  -w, --worker <id>   Focus on specific worker
+  --deep              Run system-level diagnostics
+  --fix               Generate and execute recovery plan (with confirmation)
+  -e, --error <msg>   Specific error message to analyze
+  -s, --stacktrace <path>
+                      Path to stack trace file
+  --env               Run comprehensive environment diagnostics
+  -i, --interactive   Interactive debugging wizard mode
+  --report <path>     Write full diagnostic markdown report to file
+  --help              Show this help message
+```

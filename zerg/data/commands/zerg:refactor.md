@@ -86,6 +86,20 @@ On completion, call TaskUpdate:
   - taskId: (the Claude Task ID)
   - status: "completed"
 
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:refactor — Automated code improvement and cleanup.
+
+Flags:
+  --transforms LIST     Comma-separated transforms: dead-code,simplify,types,patterns,naming
+  --dry-run             Preview changes without applying
+  --interactive         Approve changes one by one
+  --help                Show this help message
+```
+
 ## Exit Codes
 
 - 0: No issues (or all applied)

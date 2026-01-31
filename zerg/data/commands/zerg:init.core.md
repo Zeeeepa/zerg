@@ -198,3 +198,18 @@ Immediately call TaskUpdate:
 On completion (after output summary), call TaskUpdate:
   - taskId: (the Claude Task ID)
   - status: "completed"
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:init — Initialize ZERG for a project. Operates in two modes based on directory state.
+
+Flags:
+  --workers N           Number of workers to configure
+  --security LEVEL      Security level (e.g., strict)
+  --no-security-rules   Skip security rules during init
+  --with-containers     Build devcontainer image after init
+  --help                Show this help message
+```

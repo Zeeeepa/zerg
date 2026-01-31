@@ -99,3 +99,20 @@ On completion, call TaskUpdate:
 - If target file not found: report error, suggest similar paths
 - If AST parse fails: fall back to regex-based extraction with warning
 - If type detection is ambiguous: use --type flag or prompt user
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:document — Generate documentation for a specific component, module, or command.
+
+Flags:
+  --type auto|module|command|config|api|types
+                    Component type override (default: auto)
+  --output PATH     Output path for generated docs (default: stdout)
+  --depth shallow|standard|deep
+                    Documentation depth (default: standard)
+  --update          Update existing documentation in-place
+  --help            Show this help message
+```

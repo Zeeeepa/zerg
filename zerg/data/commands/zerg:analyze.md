@@ -69,3 +69,21 @@ On completion, call TaskUpdate:
 - 0: All checks passed
 - 1: One or more checks failed
 - 2: Configuration error
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:analyze — Run static analysis, complexity metrics, and quality assessment.
+
+Flags:
+  --check <lint|complexity|coverage|security|all>
+                      Type of analysis to run
+  --format <text|json|sarif>
+                      Output format
+  --threshold <key=value,...>
+                      Custom thresholds (e.g., complexity=10,coverage=70)
+  --files <path>      Specific files to analyze
+  --help              Show this help message
+```

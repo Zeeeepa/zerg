@@ -1,4 +1,4 @@
-# ZERG Initialize
+
 
 Initialize ZERG for a project. Operates in two modes based on directory state.
 
@@ -199,6 +199,17 @@ On completion (after output summary), call TaskUpdate:
   - taskId: (the Claude Task ID)
   - status: "completed"
 
-<!-- SPLIT: core=zerg:init.core.md details=zerg:init.details.md -->
-<!-- For detailed examples and templates, see zerg:init.details.md -->
+## Help
 
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:init — Initialize ZERG for a project. Operates in two modes based on directory state.
+
+Flags:
+  --workers N           Number of workers to configure
+  --security LEVEL      Security level (e.g., strict)
+  --no-security-rules   Skip security rules during init
+  --with-containers     Build devcontainer image after init
+  --help                Show this help message
+```

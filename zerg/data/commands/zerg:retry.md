@@ -230,3 +230,22 @@ cat ".zerg/logs/verification/TASK-ID.log"
 - Task took longer than allowed
 - Increase timeout with --timeout
 - Or break task into smaller pieces
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:retry — Retry failed or blocked tasks.
+
+Flags:
+  TASK_IDS              Specific task IDs to retry (optional)
+  -l, --level INTEGER   Retry all failed tasks in level
+  -a, --all             Retry all failed tasks
+  -f, --force           Bypass retry limit
+  -t, --timeout INT     Override timeout for retry (seconds)
+  --reset               Reset retry counters
+  --dry-run             Show what would be retried
+  -v, --verbose         Verbose output
+  --help                Show this help message
+```

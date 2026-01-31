@@ -217,3 +217,17 @@ zerg status --watch --interval 2
 zerg status
 ```
 
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:rush — Launch parallel workers to execute the task graph.
+
+Flags:
+  --workers N           Number of workers to launch (default: 5, max: 10)
+  --resume              Resume a previous run, skipping completed tasks
+  --mode MODE           Execution mode: container|subprocess
+  --help                Show this help message
+```
+

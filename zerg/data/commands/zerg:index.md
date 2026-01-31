@@ -106,3 +106,18 @@ On completion, call TaskUpdate:
 - If output directory doesn't exist: create it
 - If --push fails (no wiki repo): report error with setup instructions
 - If individual page generation fails: log warning, continue with remaining pages
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:index — Generate a complete documentation wiki for the ZERG project.
+
+Flags:
+  --full            Regenerate all pages from scratch (default: incremental)
+  --push            Push generated wiki to {repo}.wiki.git after generation
+  --dry-run         Preview what would be generated without writing files
+  --output PATH     Output directory for wiki pages (default: .zerg/wiki/)
+  --help            Show this help message
+```

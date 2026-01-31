@@ -77,3 +77,15 @@ After finalization, verify Task system consistency:
 
 Call **TaskList** and confirm all tasks at level `$CURRENT_LEVEL` show status "completed".
 If any task is not completed, log a warning: `Task {subject} not marked completed in Task system`.
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:merge — Manually trigger or manage level merge operations.
+
+Flags:
+  --force               Force merge even if quality gates fail
+  --help                Show this help message
+```

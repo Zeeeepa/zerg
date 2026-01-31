@@ -227,3 +227,19 @@ If user chooses "Delete tasks":
 3. **Feature required**: Must specify feature or --all
 4. **Preserves spec files**: Design docs never deleted
 5. **Git reflog**: Branches recoverable for 30 days
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:cleanup — Remove ZERG artifacts and clean up resources.
+
+Flags:
+  -f, --feature TEXT  Feature to clean (required unless --all)
+  --all               Clean all ZERG features
+  --keep-logs         Preserve log files
+  --keep-branches     Preserve git branches
+  --dry-run           Show cleanup plan without executing
+  --help              Show this help message
+```

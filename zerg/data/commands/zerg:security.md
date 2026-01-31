@@ -135,6 +135,20 @@ On completion, call TaskUpdate:
   - taskId: (the Claude Task ID)
   - status: "completed"
 
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:security — Security review, vulnerability scanning, secure coding rules, and hardening recommendations.
+
+Flags:
+  --preset PRESET       Security preset: owasp|pci|hipaa|soc2 (default: owasp)
+  --autofix             Apply auto-fix suggestions
+  --format FORMAT       Output format: text|json|sarif (default: text)
+  --help                Show this help message
+```
+
 ## Exit Codes
 
 - 0: No vulnerabilities found

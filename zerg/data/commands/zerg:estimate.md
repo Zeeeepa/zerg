@@ -1,3 +1,4 @@
+<!-- SPLIT: core=zerg:estimate.core.md details=zerg:estimate.details.md -->
 # ZERG Estimate
 
 Full-lifecycle effort estimation with PERT confidence intervals, post-execution comparison, historical calibration, and API cost projection.
@@ -109,5 +110,25 @@ On completion, call TaskUpdate:
 - 0: Estimation completed successfully
 - 1: Missing task-graph or state data
 - 2: Configuration error
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:estimate — Full-lifecycle effort estimation with PERT confidence intervals, post-execution comparison, historical calibration, and API cost projection.
+
+Flags:
+  --pre             Force pre-execution estimation mode
+  --post            Force post-execution comparison mode
+  --calibrate       Show historical accuracy and compute bias factors
+  --workers N       Worker count for wall-clock projection (default: from config or 5)
+  --format text|json|md
+                    Output format (default: text)
+  --verbose         Show per-task breakdown (not just level summaries)
+  --history         Show past estimates for this feature
+  --no-calibration  Skip auto-applying calibration bias
+  --help            Show this help message
+```
 
 <!-- SPLIT: core=zerg:estimate.core.md details=zerg:estimate.details.md -->

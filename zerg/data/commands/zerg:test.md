@@ -80,3 +80,19 @@ On completion, call TaskUpdate:
 - 0: All tests passed
 - 1: Some tests failed
 - 2: Configuration error
+
+## Help
+
+When `--help` is passed in `$ARGUMENTS`, display usage and exit:
+
+```
+/zerg:test — Execute tests with coverage analysis and test generation.
+
+Flags:
+  --generate             Generate test stubs for uncovered code
+  --coverage             Report coverage
+  --watch                Watch mode for continuous testing
+  --parallel N           Parallel execution with N workers
+  --framework <value>    Test framework: pytest|jest|cargo|go
+  --help                 Show this help message
+```
