@@ -1,0 +1,150 @@
+{
+  "feature": "zerg-select-tool",
+  "version": "2.0",
+  "generated": "2026-01-31T23:30:00Z",
+  "total_tasks": 4,
+  "estimated_duration_minutes": 30,
+  "max_parallelization": 2,
+  "critical_path_minutes": 25,
+
+  "tasks": [
+    {
+      "id": "SELECT-L1-001",
+      "title": "Create zerg:select-tool.core.md",
+      "description": "Create the core command file with split marker, flags (task description, --domain, --format, --verbose, --no-agents, --no-mcp), pre-flight (task description parsing, domain auto-detection), scoring workflow overview (5 axes, composite formula, tier mapping), output format template, task tracking (TaskCreate/TaskUpdate), and completion criteria. Under 150 lines.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["zerg/data/commands/zerg:select-tool.core.md"],
+        "modify": [],
+        "read": ["zerg/data/commands/zerg:explain.core.md", "zerg/data/commands/zerg:estimate.core.md"]
+      },
+      "acceptance_criteria": [
+        "File exists with <!-- SPLIT: core --> marker",
+        "Contains all flags: --domain, --format, --verbose, --no-agents, --no-mcp",
+        "Contains pre-flight with domain auto-detection",
+        "Contains 5-axis scoring overview with composite formula",
+        "Contains output format template with ranked tools",
+        "Contains TaskCreate and TaskUpdate calls",
+        "Under 150 lines"
+      ],
+      "verification": {
+        "command": "test -f zerg/data/commands/zerg:select-tool.core.md && grep -q TaskCreate zerg/data/commands/zerg:select-tool.core.md && grep -q 'SPLIT' zerg/data/commands/zerg:select-tool.core.md && grep -q 'composite' zerg/data/commands/zerg:select-tool.core.md",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 10,
+      "critical_path": true
+    },
+    {
+      "id": "SELECT-L1-002",
+      "title": "Create zerg:select-tool.details.md",
+      "description": "Create the details reference file with: MCP server capability matrix (Context7, Sequential, Magic, Morphllm, Serena, Playwright), native tool matrix (Read/Glob/Grep, Edit/Write, WebSearch/WebFetch), Task agent subtype guide (9 agents with score ranges), scoring formulas per axis with keyword triggers, composite calculation with tier mapping table, config schema extension for .zerg/config.yaml, fallback chain definitions, verbose output format, 3+ worked examples, edge cases. Under 300 lines.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["zerg/data/commands/zerg:select-tool.details.md"],
+        "modify": [],
+        "read": ["zerg/data/commands/zerg:explain.details.md", "zerg/data/commands/zerg:estimate.details.md"]
+      },
+      "acceptance_criteria": [
+        "File exists with <!-- SPLIT: details --> marker",
+        "Contains MCP server capability matrix (6 servers)",
+        "Contains native tool matrix",
+        "Contains Task agent subtype guide (9+ agents)",
+        "Contains scoring formulas per axis with keyword triggers",
+        "Contains composite calculation and tier mapping",
+        "Contains config schema extension",
+        "Contains fallback chains",
+        "Contains 3+ worked examples",
+        "Under 300 lines"
+      ],
+      "verification": {
+        "command": "test -f zerg/data/commands/zerg:select-tool.details.md && grep -c 'Context7\\|Sequential\\|Playwright\\|Magic\\|Morphllm\\|Serena' zerg/data/commands/zerg:select-tool.details.md && grep -q 'composite' zerg/data/commands/zerg:select-tool.details.md",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 15,
+      "critical_path": true
+    },
+    {
+      "id": "SELECT-L2-001",
+      "title": "Create zerg:select-tool.md parent + update backlog",
+      "description": "Create the parent command file (copy of core content for backward compatibility, with SPLIT marker referencing core and details). Update claudedocs/backlog.md to mark zerg:select-tool as DONE.",
+      "phase": "integration",
+      "level": 2,
+      "dependencies": ["SELECT-L1-001", "SELECT-L1-002"],
+      "files": {
+        "create": ["zerg/data/commands/zerg:select-tool.md"],
+        "modify": ["claudedocs/backlog.md"],
+        "read": ["zerg/data/commands/zerg:select-tool.core.md"]
+      },
+      "acceptance_criteria": [
+        "Parent file exists with content matching core",
+        "Parent has SPLIT marker referencing core and details files",
+        "claudedocs/backlog.md shows zerg:select-tool as DONE"
+      ],
+      "verification": {
+        "command": "test -f zerg/data/commands/zerg:select-tool.md && grep -q 'SPLIT' zerg/data/commands/zerg:select-tool.md && grep 'select-tool' claudedocs/backlog.md | grep -q 'DONE'",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 5,
+      "critical_path": true
+    },
+    {
+      "id": "SELECT-L3-001",
+      "title": "Validate command structure and drift detection",
+      "description": "Run verification checks: all 3 files exist, TaskCreate/TaskUpdate present in all files, split markers correct, scoring formulas in details, MCP matrix present, drift detection passes, backlog updated. Run existing test suite to confirm no regressions.",
+      "phase": "quality",
+      "level": 3,
+      "dependencies": ["SELECT-L2-001"],
+      "files": {
+        "create": [],
+        "modify": [],
+        "read": ["zerg/data/commands/zerg:select-tool.md", "zerg/data/commands/zerg:select-tool.core.md", "zerg/data/commands/zerg:select-tool.details.md", "claudedocs/backlog.md"]
+      },
+      "acceptance_criteria": [
+        "All 3 select-tool command files exist",
+        "All files contain Task tracking references",
+        "Split markers present and correct",
+        "Drift detection shows no missing Task refs",
+        "Existing tests pass"
+      ],
+      "verification": {
+        "command": "ls zerg/data/commands/zerg:select-tool.md zerg/data/commands/zerg:select-tool.core.md zerg/data/commands/zerg:select-tool.details.md && python -m pytest tests/ -x -q --ignore=tests/test_doc_engine.py 2>&1 | tail -5",
+        "timeout_seconds": 600
+      },
+      "estimate_minutes": 5,
+      "critical_path": true
+    }
+  ],
+
+  "levels": {
+    "1": {
+      "name": "foundation",
+      "tasks": ["SELECT-L1-001", "SELECT-L1-002"],
+      "parallel": true,
+      "estimated_minutes": 15,
+      "depends_on_levels": []
+    },
+    "2": {
+      "name": "integration",
+      "tasks": ["SELECT-L2-001"],
+      "parallel": false,
+      "estimated_minutes": 5,
+      "depends_on_levels": [1]
+    },
+    "3": {
+      "name": "quality",
+      "tasks": ["SELECT-L3-001"],
+      "parallel": false,
+      "estimated_minutes": 5,
+      "depends_on_levels": [2]
+    }
+  },
+
+  "conflict_matrix": {
+    "description": "No file ownership conflicts — each file created by exactly one task",
+    "conflicts": []
+  }
+}
