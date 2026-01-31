@@ -110,21 +110,27 @@ def retry(
 def detect_feature() -> str | None:
     """Detect active feature from state files.
 
+    Checks .zerg/state/ for the most recent state JSON first,
+    then falls back to .gsd/.current-feature.
+
     Returns:
         Feature name or None
     """
     state_dir = Path(".zerg/state")
-    if not state_dir.exists():
-        return None
+    if state_dir.exists():
+        state_files = list(state_dir.glob("*.json"))
+        if state_files:
+            state_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            return state_files[0].stem
 
-    # Find most recent state file
-    state_files = list(state_dir.glob("*.json"))
-    if not state_files:
-        return None
+    # Fallback: check .gsd/.current-feature
+    current_feature = Path(".gsd/.current-feature")
+    if current_feature.exists():
+        name = current_feature.read_text().strip()
+        if name:
+            return name
 
-    # Sort by modification time
-    state_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return state_files[0].stem
+    return None
 
 
 def get_failed_tasks(state: StateManager) -> list[str]:

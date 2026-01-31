@@ -1,0 +1,571 @@
+{
+  "feature": "zerg-docs",
+  "version": "2.0",
+  "generated": "2026-01-31T12:00:00Z",
+  "total_tasks": 24,
+  "estimated_duration_minutes": 180,
+  "max_parallelization": 8,
+
+  "tasks": [
+    {
+      "id": "DOC-001",
+      "title": "Create doc_engine package + ComponentDetector",
+      "description": "Create the zerg/doc_engine package with __init__.py and detector.py. ComponentDetector auto-detects component type (module, command, config, types, api) via AST analysis, file extension, and structural markers.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["zerg/doc_engine/__init__.py", "zerg/doc_engine/detector.py"],
+        "modify": [],
+        "read": ["zerg/command_splitter.py"]
+      },
+      "acceptance_criteria": [
+        "ComponentDetector.detect(path) returns ComponentType enum",
+        "Supports: module, command, config, types, api detection",
+        "__init__.py exports all public classes"
+      ],
+      "verification": {
+        "command": "python -c \"from zerg.doc_engine.detector import ComponentDetector, ComponentType; print('OK')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-002",
+      "title": "Create SymbolExtractor",
+      "description": "AST-based symbol extraction: classes, functions, imports, docstrings, type definitions. Uses Python ast module to parse source files and extract structured symbol information.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["zerg/doc_engine/extractor.py"],
+        "modify": [],
+        "read": ["zerg/command_splitter.py"]
+      },
+      "acceptance_criteria": [
+        "SymbolExtractor.extract(path) returns SymbolTable with classes, functions, imports",
+        "Extracts docstrings, type annotations, decorators",
+        "Handles Python source files"
+      ],
+      "verification": {
+        "command": "python -c \"from zerg.doc_engine.extractor import SymbolExtractor; print('OK')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-003",
+      "title": "Create DependencyMapper",
+      "description": "Import graph builder with reverse-import lookup. Crawls Python source files to build a directed graph of import relationships. Supports both forward (what does X import) and reverse (what imports X) queries.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["zerg/doc_engine/dependencies.py"],
+        "modify": [],
+        "read": []
+      },
+      "acceptance_criteria": [
+        "DependencyMapper.build(root_dir) constructs import graph",
+        "get_imports(module) returns list of imports",
+        "get_importers(module) returns reverse imports"
+      ],
+      "verification": {
+        "command": "python -c \"from zerg.doc_engine.dependencies import DependencyMapper; print('OK')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-004",
+      "title": "Create MermaidGenerator",
+      "description": "Generate Mermaid diagram syntax for: module dependency graphs, command workflow sequences, task lifecycle state machines, system data flow diagrams.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["zerg/doc_engine/mermaid.py"],
+        "modify": [],
+        "read": []
+      },
+      "acceptance_criteria": [
+        "MermaidGenerator.dependency_graph(modules) returns Mermaid graph TD syntax",
+        "MermaidGenerator.workflow(steps) returns Mermaid sequence diagram",
+        "MermaidGenerator.state_machine(states, transitions) returns stateDiagram-v2"
+      ],
+      "verification": {
+        "command": "python -c \"from zerg.doc_engine.mermaid import MermaidGenerator; print('OK')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-005",
+      "title": "Create DocRenderer + templates",
+      "description": "DocRenderer orchestrates detection -> extraction -> template rendering. Templates for module, command, config, types, api component types. Match existing ZERG documentation style (tables, code blocks, progressive disclosure, no emoji).",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["zerg/doc_engine/renderer.py", "zerg/doc_engine/templates.py"],
+        "modify": [],
+        "read": ["zerg/data/commands/zerg:analyze.md"]
+      },
+      "acceptance_criteria": [
+        "DocRenderer.render(path) produces markdown string",
+        "Templates for 5 component types: module, command, config, types, api",
+        "Templates use tables, code blocks, progressive disclosure"
+      ],
+      "verification": {
+        "command": "python -c \"from zerg.doc_engine.renderer import DocRenderer; from zerg.doc_engine.templates import TEMPLATES; print('OK')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-006",
+      "title": "Create CrossRefBuilder",
+      "description": "Cross-reference system: glossary term extraction from codebase, wiki link injection into generated docs, 'See also' section generation based on import relationships and topic similarity.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["zerg/doc_engine/crossref.py"],
+        "modify": [],
+        "read": []
+      },
+      "acceptance_criteria": [
+        "CrossRefBuilder.build_glossary(pages) extracts terms",
+        "CrossRefBuilder.inject_links(content, glossary) adds wiki links",
+        "CrossRefBuilder.see_also(page, all_pages) returns related pages"
+      ],
+      "verification": {
+        "command": "python -c \"from zerg.doc_engine.crossref import CrossRefBuilder; print('OK')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-007",
+      "title": "Create SidebarGenerator",
+      "description": "Generate GitHub Wiki _Sidebar.md from page hierarchy. Groups pages by section (Getting Started, Command Reference, Architecture, etc.) with proper indentation and linking.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": ["zerg/doc_engine/sidebar.py"],
+        "modify": [],
+        "read": []
+      },
+      "acceptance_criteria": [
+        "SidebarGenerator.generate(pages) returns _Sidebar.md content",
+        "Pages grouped by section with proper hierarchy",
+        "Links use GitHub Wiki format [[Page Name]]"
+      ],
+      "verification": {
+        "command": "python -c \"from zerg.doc_engine.sidebar import SidebarGenerator; print('OK')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-008",
+      "title": "Create /z:document command file",
+      "description": "Create zerg:document.md slash command file. Usage: /z:document <target> [--type auto|module|command|config|api|types] [--output PATH] [--depth shallow|standard|deep] [--update]. Includes Task tracking (TaskCreate/TaskUpdate).",
+      "phase": "commands",
+      "level": 2,
+      "dependencies": ["DOC-001", "DOC-002", "DOC-003", "DOC-004", "DOC-005", "DOC-006"],
+      "files": {
+        "create": ["zerg/data/commands/zerg:document.md"],
+        "modify": [],
+        "read": ["zerg/data/commands/zerg:analyze.md"]
+      },
+      "acceptance_criteria": [
+        "Command file follows existing ZERG command style",
+        "Includes TaskCreate/TaskUpdate for task tracking",
+        "Documents all flags and usage examples"
+      ],
+      "verification": {
+        "command": "test -f zerg/data/commands/zerg:document.md && grep -q 'TaskCreate' zerg/data/commands/zerg:document.md && echo OK",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-009",
+      "title": "Create /z:index command file",
+      "description": "Create zerg:index.md slash command file. Usage: /z:index [--full] [--push] [--dry-run] [--output .zerg/wiki/]. Includes Task tracking. Drives full wiki generation pipeline.",
+      "phase": "commands",
+      "level": 2,
+      "dependencies": ["DOC-001", "DOC-002", "DOC-003", "DOC-004", "DOC-005", "DOC-006", "DOC-007"],
+      "files": {
+        "create": ["zerg/data/commands/zerg:index.md"],
+        "modify": [],
+        "read": ["zerg/data/commands/zerg:analyze.md"]
+      },
+      "acceptance_criteria": [
+        "Command file follows existing ZERG command style",
+        "Includes TaskCreate/TaskUpdate for task tracking",
+        "Documents --full, --push, --dry-run flags"
+      ],
+      "verification": {
+        "command": "test -f zerg/data/commands/zerg:index.md && grep -q 'TaskCreate' zerg/data/commands/zerg:index.md && echo OK",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-010",
+      "title": "Create WikiPublisher",
+      "description": "WikiPublisher handles git clone/push to {repo}.wiki.git. Clones wiki repo, copies generated pages, commits and pushes. Supports --dry-run mode.",
+      "phase": "commands",
+      "level": 2,
+      "dependencies": ["DOC-007"],
+      "files": {
+        "create": ["zerg/doc_engine/publisher.py"],
+        "modify": [],
+        "read": []
+      },
+      "acceptance_criteria": [
+        "WikiPublisher.publish(wiki_dir, repo_url) clones and pushes",
+        "Supports dry_run=True mode",
+        "Handles missing wiki repo gracefully"
+      ],
+      "verification": {
+        "command": "python -c \"from zerg.doc_engine.publisher import WikiPublisher; print('OK')\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-011",
+      "title": "Register document CLI command",
+      "description": "Create zerg/commands/document.py with Click command. Register in zerg/commands/__init__.py and zerg/cli.py. Command: zerg document <target> [options].",
+      "phase": "integration",
+      "level": 3,
+      "dependencies": ["DOC-008"],
+      "files": {
+        "create": ["zerg/commands/document.py"],
+        "modify": ["zerg/cli.py", "zerg/commands/__init__.py"],
+        "read": ["zerg/commands/analyze.py"]
+      },
+      "acceptance_criteria": [
+        "zerg document --help works",
+        "Command registered in CLI and __init__.py"
+      ],
+      "verification": {
+        "command": "python -m zerg document --help 2>&1 | head -5",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-012",
+      "title": "Register index/wiki CLI command",
+      "description": "Create zerg/commands/wiki.py with Click command. Register in zerg/commands/__init__.py and zerg/cli.py. Command: zerg wiki [options].",
+      "phase": "integration",
+      "level": 3,
+      "dependencies": ["DOC-009", "DOC-010"],
+      "files": {
+        "create": ["zerg/commands/wiki.py"],
+        "modify": ["zerg/cli.py", "zerg/commands/__init__.py"],
+        "read": ["zerg/commands/analyze.py"]
+      },
+      "acceptance_criteria": [
+        "zerg wiki --help works",
+        "Command registered in CLI and __init__.py"
+      ],
+      "verification": {
+        "command": "python -m zerg wiki --help 2>&1 | head -5",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-013",
+      "title": "Create symlinks (z:document, z:index)",
+      "description": "Run zerg install-commands --force to create /z:document and /z:index symlinks in .claude/commands/.",
+      "phase": "integration",
+      "level": 3,
+      "dependencies": ["DOC-008", "DOC-009"],
+      "files": {
+        "create": [],
+        "modify": [],
+        "read": []
+      },
+      "acceptance_criteria": [
+        ".claude/commands/z:document.md exists as symlink",
+        ".claude/commands/z:index.md exists as symlink"
+      ],
+      "verification": {
+        "command": "python -m zerg install-commands --force 2>&1 | tail -5 && test -L .claude/commands/z:document.md && test -L .claude/commands/z:index.md && echo OK",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-014",
+      "title": "Generate Home + Getting Started wiki pages",
+      "description": "Generate: Home.md, Getting-Started.md, Installation.md, Quick-Start.md, Your-First-Feature.md. Home page has navigation grid layout.",
+      "phase": "wiki-content",
+      "level": 4,
+      "dependencies": ["DOC-012"],
+      "files": {
+        "create": [".zerg/wiki/Home.md", ".zerg/wiki/Getting-Started.md", ".zerg/wiki/Installation.md", ".zerg/wiki/Quick-Start.md", ".zerg/wiki/Your-First-Feature.md"],
+        "modify": [],
+        "read": ["CLAUDE.md", "README.md"]
+      },
+      "acceptance_criteria": [
+        "5 wiki pages created in .zerg/wiki/",
+        "Home.md has navigation grid",
+        "Getting Started section is progressive (install -> quick start -> first feature)"
+      ],
+      "verification": {
+        "command": "ls .zerg/wiki/Home.md .zerg/wiki/Getting-Started.md .zerg/wiki/Installation.md .zerg/wiki/Quick-Start.md .zerg/wiki/Your-First-Feature.md 2>/dev/null | wc -l | tr -d ' '",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-015",
+      "title": "Generate Tutorial wiki pages",
+      "description": "Generate: Tutorials.md, Tutorial-Minerals-Store.md, Tutorial-Container-Mode.md. Complete walkthroughs with code examples.",
+      "phase": "wiki-content",
+      "level": 4,
+      "dependencies": ["DOC-012"],
+      "files": {
+        "create": [".zerg/wiki/Tutorials.md", ".zerg/wiki/Tutorial-Minerals-Store.md", ".zerg/wiki/Tutorial-Container-Mode.md"],
+        "modify": [],
+        "read": ["CLAUDE.md", "zerg/data/commands/zerg:rush.md"]
+      },
+      "acceptance_criteria": [
+        "3 tutorial pages created",
+        "Each tutorial has step-by-step instructions",
+        "Code examples are complete and runnable"
+      ],
+      "verification": {
+        "command": "ls .zerg/wiki/Tutorials.md .zerg/wiki/Tutorial-Minerals-Store.md .zerg/wiki/Tutorial-Container-Mode.md 2>/dev/null | wc -l | tr -d ' '",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-016",
+      "title": "Generate Command Reference pages batch 1",
+      "description": "Generate: Command-Reference.md (index) + pages for init, plan, design, rush, status, logs, stop, retry, merge, cleanup commands.",
+      "phase": "wiki-content",
+      "level": 4,
+      "dependencies": ["DOC-012"],
+      "files": {
+        "create": [".zerg/wiki/Command-Reference.md", ".zerg/wiki/Command-init.md", ".zerg/wiki/Command-plan.md", ".zerg/wiki/Command-design.md", ".zerg/wiki/Command-rush.md", ".zerg/wiki/Command-status.md", ".zerg/wiki/Command-logs.md", ".zerg/wiki/Command-stop.md", ".zerg/wiki/Command-retry.md", ".zerg/wiki/Command-merge.md", ".zerg/wiki/Command-cleanup.md"],
+        "modify": [],
+        "read": ["zerg/data/commands/zerg:init.md", "zerg/data/commands/zerg:plan.md", "zerg/data/commands/zerg:design.md", "zerg/data/commands/zerg:rush.md", "zerg/data/commands/zerg:status.md"]
+      },
+      "acceptance_criteria": [
+        "11 command reference pages created",
+        "Each page has Usage, Options, Examples, See Also sections",
+        "Command-Reference.md is an index linking to all command pages"
+      ],
+      "verification": {
+        "command": "ls .zerg/wiki/Command-Reference.md .zerg/wiki/Command-init.md .zerg/wiki/Command-plan.md .zerg/wiki/Command-rush.md 2>/dev/null | wc -l | tr -d ' '",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-017",
+      "title": "Generate Command Reference pages batch 2",
+      "description": "Generate command pages for: build, test, analyze, review, security, refactor, git, debug, worker, plugins, document, index.",
+      "phase": "wiki-content",
+      "level": 4,
+      "dependencies": ["DOC-012"],
+      "files": {
+        "create": [".zerg/wiki/Command-build.md", ".zerg/wiki/Command-test.md", ".zerg/wiki/Command-analyze.md", ".zerg/wiki/Command-review.md", ".zerg/wiki/Command-security.md", ".zerg/wiki/Command-refactor.md", ".zerg/wiki/Command-git.md", ".zerg/wiki/Command-debug.md", ".zerg/wiki/Command-worker.md", ".zerg/wiki/Command-plugins.md", ".zerg/wiki/Command-document.md", ".zerg/wiki/Command-index.md"],
+        "modify": [],
+        "read": ["zerg/data/commands/zerg:build.md", "zerg/data/commands/zerg:analyze.md", "zerg/data/commands/zerg:debug.md"]
+      },
+      "acceptance_criteria": [
+        "12 command reference pages created",
+        "Each page has Usage, Options, Examples, See Also sections"
+      ],
+      "verification": {
+        "command": "ls .zerg/wiki/Command-build.md .zerg/wiki/Command-test.md .zerg/wiki/Command-analyze.md .zerg/wiki/Command-document.md .zerg/wiki/Command-index.md 2>/dev/null | wc -l | tr -d ' '",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-018",
+      "title": "Generate Architecture wiki pages",
+      "description": "Generate: Architecture-Overview.md, Architecture-Execution-Flow.md, Architecture-Module-Reference.md, Architecture-State-Management.md, Architecture-Dependency-Graph.md. Include Mermaid diagrams.",
+      "phase": "wiki-content",
+      "level": 4,
+      "dependencies": ["DOC-012"],
+      "files": {
+        "create": [".zerg/wiki/Architecture-Overview.md", ".zerg/wiki/Architecture-Execution-Flow.md", ".zerg/wiki/Architecture-Module-Reference.md", ".zerg/wiki/Architecture-State-Management.md", ".zerg/wiki/Architecture-Dependency-Graph.md"],
+        "modify": [],
+        "read": ["zerg/orchestrator.py", "zerg/levels.py", "zerg/types.py", "zerg/launcher.py"]
+      },
+      "acceptance_criteria": [
+        "5 architecture pages created",
+        "Mermaid diagrams for module deps, execution flow, state management",
+        "Module reference covers all zerg/ Python modules"
+      ],
+      "verification": {
+        "command": "ls .zerg/wiki/Architecture-Overview.md .zerg/wiki/Architecture-Execution-Flow.md .zerg/wiki/Architecture-Module-Reference.md 2>/dev/null | wc -l | tr -d ' '",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-019",
+      "title": "Generate Config + Plugin + CE wiki pages",
+      "description": "Generate: Configuration.md, Tuning-Guide.md, Plugin-System.md, Plugin-API-Reference.md, Context-Engineering.md, Context-Engineering-Internals.md.",
+      "phase": "wiki-content",
+      "level": 4,
+      "dependencies": ["DOC-012"],
+      "files": {
+        "create": [".zerg/wiki/Configuration.md", ".zerg/wiki/Tuning-Guide.md", ".zerg/wiki/Plugin-System.md", ".zerg/wiki/Plugin-API-Reference.md", ".zerg/wiki/Context-Engineering.md", ".zerg/wiki/Context-Engineering-Internals.md"],
+        "modify": [],
+        "read": ["zerg/plugins.py", "zerg/context_plugin.py", "zerg/command_splitter.py"]
+      },
+      "acceptance_criteria": [
+        "6 wiki pages created covering config, plugins, and context engineering",
+        "Configuration page documents all .zerg/config.yaml options",
+        "Plugin API reference documents the ContextPlugin ABC"
+      ],
+      "verification": {
+        "command": "ls .zerg/wiki/Configuration.md .zerg/wiki/Plugin-System.md .zerg/wiki/Context-Engineering.md 2>/dev/null | wc -l | tr -d ' '",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-020",
+      "title": "Generate Troubleshooting + Contributing wiki pages",
+      "description": "Generate: Troubleshooting.md, Debug-Guide.md, Contributing.md, Testing.md.",
+      "phase": "wiki-content",
+      "level": 4,
+      "dependencies": ["DOC-012"],
+      "files": {
+        "create": [".zerg/wiki/Troubleshooting.md", ".zerg/wiki/Debug-Guide.md", ".zerg/wiki/Contributing.md", ".zerg/wiki/Testing.md"],
+        "modify": [],
+        "read": ["CLAUDE.md", "tests/conftest.py"]
+      },
+      "acceptance_criteria": [
+        "4 wiki pages created",
+        "Troubleshooting has common issues + solutions",
+        "Testing documents test structure and how to run tests"
+      ],
+      "verification": {
+        "command": "ls .zerg/wiki/Troubleshooting.md .zerg/wiki/Debug-Guide.md .zerg/wiki/Contributing.md .zerg/wiki/Testing.md 2>/dev/null | wc -l | tr -d ' '",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-021",
+      "title": "Generate Reference pages + Sidebar + Footer",
+      "description": "Generate: Glossary.md, FAQ.md, _Sidebar.md, _Footer.md. Sidebar links to all wiki pages grouped by section.",
+      "phase": "wiki-content",
+      "level": 4,
+      "dependencies": ["DOC-012", "DOC-014", "DOC-015", "DOC-016", "DOC-017", "DOC-018", "DOC-019", "DOC-020"],
+      "files": {
+        "create": [".zerg/wiki/Glossary.md", ".zerg/wiki/FAQ.md", ".zerg/wiki/_Sidebar.md", ".zerg/wiki/_Footer.md"],
+        "modify": [],
+        "read": []
+      },
+      "acceptance_criteria": [
+        "_Sidebar.md links to all wiki pages, grouped by section",
+        "Glossary defines key ZERG terms",
+        "FAQ covers common questions"
+      ],
+      "verification": {
+        "command": "ls .zerg/wiki/Glossary.md .zerg/wiki/FAQ.md .zerg/wiki/_Sidebar.md .zerg/wiki/_Footer.md 2>/dev/null | wc -l | tr -d ' '",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-022",
+      "title": "Unit tests for doc_engine",
+      "description": "Create tests/test_doc_engine.py with unit tests for ComponentDetector, SymbolExtractor, DependencyMapper, MermaidGenerator, DocRenderer, CrossRefBuilder, SidebarGenerator.",
+      "phase": "quality",
+      "level": 5,
+      "dependencies": ["DOC-001", "DOC-002", "DOC-003", "DOC-004", "DOC-005", "DOC-006", "DOC-007"],
+      "files": {
+        "create": ["tests/test_doc_engine.py"],
+        "modify": [],
+        "read": ["zerg/doc_engine/detector.py", "zerg/doc_engine/extractor.py"]
+      },
+      "acceptance_criteria": [
+        "Tests for all 7 doc_engine modules",
+        "Tests pass with pytest",
+        "Covers core functionality of each module"
+      ],
+      "verification": {
+        "command": "python -m pytest tests/test_doc_engine.py -x -q 2>&1 | tail -5",
+        "timeout_seconds": 60
+      }
+    },
+    {
+      "id": "DOC-023",
+      "title": "Validate all wiki links + Mermaid blocks",
+      "description": "Run validation pass on all generated wiki pages. Check that all internal [[links]] resolve to existing pages. Verify Mermaid code blocks have valid syntax.",
+      "phase": "quality",
+      "level": 5,
+      "dependencies": ["DOC-021"],
+      "files": {
+        "create": [],
+        "modify": [],
+        "read": []
+      },
+      "acceptance_criteria": [
+        "All internal wiki links resolve",
+        "No broken cross-references",
+        "Mermaid blocks have valid syntax"
+      ],
+      "verification": {
+        "command": "python -c \"\nfrom pathlib import Path\nimport re\npages = {p.stem for p in Path('.zerg/wiki').glob('*.md') if not p.name.startswith('_')}\nbroken = []\nfor p in Path('.zerg/wiki').glob('*.md'):\n    for m in re.finditer(r'\\[\\[([\\w-]+)\\]\\]', p.read_text()):\n        if m.group(1) not in pages:\n            broken.append(f'{p.name} -> {m.group(1)}')\nif broken:\n    print('BROKEN:', broken)\n    exit(1)\nprint(f'OK: {len(pages)} pages, all links valid')\n\"",
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "id": "DOC-024",
+      "title": "Update backlog + create requirements.md",
+      "description": "Update claudedocs/backlog.md to mark items #1 and #2 as DONE. Create .gsd/specs/zerg-docs/requirements.md with Status: APPROVED.",
+      "phase": "quality",
+      "level": 5,
+      "dependencies": ["DOC-023"],
+      "files": {
+        "create": [".gsd/specs/zerg-docs/requirements.md"],
+        "modify": ["claudedocs/backlog.md"],
+        "read": []
+      },
+      "acceptance_criteria": [
+        "Backlog items #1 and #2 marked as DONE",
+        "requirements.md created with APPROVED status"
+      ],
+      "verification": {
+        "command": "grep -c 'DONE' claudedocs/backlog.md && test -f .gsd/specs/zerg-docs/requirements.md && echo OK",
+        "timeout_seconds": 30
+      }
+    }
+  ],
+
+  "levels": {
+    "1": {
+      "name": "foundation",
+      "tasks": ["DOC-001", "DOC-002", "DOC-003", "DOC-004", "DOC-005", "DOC-006", "DOC-007"],
+      "parallel": true,
+      "estimated_minutes": 30
+    },
+    "2": {
+      "name": "commands",
+      "tasks": ["DOC-008", "DOC-009", "DOC-010"],
+      "parallel": true,
+      "estimated_minutes": 20,
+      "depends_on_levels": [1]
+    },
+    "3": {
+      "name": "integration",
+      "tasks": ["DOC-011", "DOC-012", "DOC-013"],
+      "parallel": true,
+      "estimated_minutes": 15,
+      "depends_on_levels": [2]
+    },
+    "4": {
+      "name": "wiki-content",
+      "tasks": ["DOC-014", "DOC-015", "DOC-016", "DOC-017", "DOC-018", "DOC-019", "DOC-020", "DOC-021"],
+      "parallel": true,
+      "estimated_minutes": 60,
+      "depends_on_levels": [3]
+    },
+    "5": {
+      "name": "quality",
+      "tasks": ["DOC-022", "DOC-023", "DOC-024"],
+      "parallel": false,
+      "estimated_minutes": 30,
+      "depends_on_levels": [4]
+    }
+  }
+}
