@@ -10,6 +10,7 @@ from zerg.commands import (
     cleanup,
     debug,
     design,
+    document,
     git_cmd,
     init,
     install_commands,
@@ -25,6 +26,7 @@ from zerg.commands import (
     stop,
     test_cmd,
     uninstall_commands,
+    wiki,
 )
 
 console = Console()
@@ -64,6 +66,8 @@ cli.add_command(status)
 cli.add_command(stop)
 cli.add_command(test_cmd, name="test")
 cli.add_command(debug)
+cli.add_command(document)
+cli.add_command(wiki)
 cli.add_command(install_commands)
 cli.add_command(uninstall_commands)
 
