@@ -104,6 +104,58 @@ def _install_to_subdir(
     return installed
 
 
+def _install_shortcut_redirects(
+    shortcut_dir: Path,
+    source_dir: Path,
+    *,
+    force: bool = False,
+) -> int:
+    """Install z/ shortcut files as thin redirects to zerg/ commands.
+
+    Instead of symlinking to the same source (which Claude Code deduplicates),
+    each z/ file contains a redirect instruction that invokes the canonical
+    zerg: version. This ensures Claude Code registers both /z:* and /zerg:*
+    as distinct skills.
+
+    Returns count installed.
+    """
+    shortcut_dir.mkdir(parents=True, exist_ok=True)
+    sources = sorted(source_dir.glob(COMMAND_GLOB))
+    if not sources:
+        raise FileNotFoundError(f"No command files found in {source_dir}")
+
+    installed = 0
+    for src in sources:
+        dest = shortcut_dir / src.name
+        stem = src.stem  # e.g. "estimate", "debug.core"
+
+        # Build redirect content
+        redirect_content = f"Shortcut: run /zerg:{stem} with the same arguments.\n"
+
+        # Skip if already a redirect with correct content
+        if not force and dest.exists() and not dest.is_symlink():
+            try:
+                if dest.read_text() == redirect_content:
+                    logger.debug("Shortcut already installed: %s", src.name)
+                    continue
+            except OSError:
+                pass
+
+        # Remove existing file/symlink
+        if dest.exists() or dest.is_symlink():
+            if not force:
+                console.print(
+                    f"  [yellow]skip[/yellow] {src.name} (exists, use --force to overwrite)"
+                )
+                continue
+            dest.unlink()
+
+        dest.write_text(redirect_content)
+        installed += 1
+
+    return installed
+
+
 def _install(
     target_dir: Path,
     source_dir: Path,
@@ -115,11 +167,11 @@ def _install(
     zerg_dir = target_dir / CANONICAL_PREFIX
     z_dir = target_dir / SHORTCUT_PREFIX
 
-    # Install canonical zerg/ commands
+    # Install canonical zerg/ commands (symlinks or copies)
     canonical_count = _install_to_subdir(zerg_dir, source_dir, copy=copy, force=force)
 
-    # Install z/ shortcuts (same sources, separate subdir)
-    shortcut_count = _install_to_subdir(z_dir, source_dir, copy=copy, force=force)
+    # Install z/ shortcuts as redirect files (not symlinks, to avoid deduplication)
+    shortcut_count = _install_shortcut_redirects(z_dir, source_dir, force=force)
 
     return canonical_count + shortcut_count
 
