@@ -30,12 +30,23 @@ class TestFactorCatalogLoad:
     def test_filter_static_only_includes_static_tools(self) -> None:
         catalog = FactorCatalog.load()
         static = catalog.filter_static_only()
-        static_tool_names = {"semgrep", "radon", "lizard", "vulture", "jscpd",
-                             "deptry", "pipdeptree", "dive", "hadolint", "trivy", "cloc"}
+        static_tool_names = {
+            "semgrep",
+            "radon",
+            "lizard",
+            "vulture",
+            "jscpd",
+            "deptry",
+            "pipdeptree",
+            "dive",
+            "hadolint",
+            "trivy",
+            "cloc",
+        }
         for factor in static:
-            assert any(
-                t in static_tool_names for t in factor.cli_tools
-            ), f"Factor {factor.id} has no static tools in {factor.cli_tools}"
+            assert any(t in static_tool_names for t in factor.cli_tools), (
+                f"Factor {factor.id} has no static tools in {factor.cli_tools}"
+            )
 
     def test_get_tool_factor_mapping_has_expected_keys(self) -> None:
         catalog = FactorCatalog.load()
