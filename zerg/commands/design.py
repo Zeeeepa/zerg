@@ -12,24 +12,28 @@ from rich.table import Table
 
 from zerg.backlog import generate_backlog_markdown
 from zerg.logging import get_logger
-from zerg.step_generator import DetailLevel, generate_steps_for_task
+from zerg.step_generator import StepGenerator
 
 console = Console()
 logger = get_logger("design")
+
+# Valid detail levels for CLI
+DETAIL_LEVELS = ("standard", "medium", "high")
 
 
 @click.command()
 @click.option("--feature", "-f", help="Feature name (uses current if not specified)")
 @click.option("--max-task-minutes", default=30, type=int, help="Maximum minutes per task")
 @click.option("--min-task-minutes", default=5, type=int, help="Minimum minutes per task")
-@click.option(
-    "--detail",
-    type=click.Choice(["standard", "medium", "high"], case_sensitive=False),
-    default="standard",
-    help="Detail level for step generation (standard=no steps, medium=TDD steps, high=TDD steps with snippets)",
-)
 @click.option("--validate-only", is_flag=True, help="Validate existing task graph only")
 @click.option("--update-backlog", is_flag=True, help="Regenerate backlog from existing task graph")
+@click.option(
+    "--detail",
+    "-d",
+    type=click.Choice(DETAIL_LEVELS, case_sensitive=False),
+    default="standard",
+    help="Detail level for step generation: standard (no steps), medium (TDD steps), high (TDD with code snippets)",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.pass_context
 def design(
@@ -37,9 +41,9 @@ def design(
     feature: str | None,
     max_task_minutes: int,
     min_task_minutes: int,
-    detail: str,
     validate_only: bool,
     update_backlog: bool,
+    detail: str,
     verbose: bool,
 ) -> None:
     """Generate architecture and task graph.
@@ -49,10 +53,12 @@ def design(
     Reads requirements from .gsd/specs/{feature}/requirements.md
     and generates a task graph for parallel execution.
 
-    The --detail flag controls step generation:
-    - standard: No steps (backward compatible, default)
-    - medium: TDD steps without code snippets
-    - high: TDD steps with code snippets
+    The --detail option controls step generation:
+
+    \b
+    - standard: No steps generated (backward compatible, classic mode)
+    - medium:   TDD sequence steps (write_test -> verify_fail -> implement -> verify_pass -> format -> commit)
+    - high:     TDD steps with code snippets from AST analysis
 
     Examples:
 
@@ -62,7 +68,7 @@ def design(
 
         zerg design --detail medium
 
-        zerg design --detail high --feature user-auth
+        zerg design --detail high --feature complex-feature
 
         zerg design --validate-only
 
@@ -118,16 +124,13 @@ def design(
                 console.print(f"[red]Error:[/red] No task graph found: {task_graph_path}")
                 raise SystemExit(1)
 
-            validate_task_graph(task_graph_path)
+            validate_task_graph(task_graph_path, detail_level=detail)
 
             task_data = _load_task_graph(task_graph_path)
             manifest = _build_design_manifest(feature, task_data)
             manifest_path = spec_dir / "design-tasks-manifest.json"
             manifest_path.write_text(json.dumps(manifest, indent=2))
             click.echo(f"  ✓ Created {manifest_path}")
-
-            # Show detail level if steps present
-            _show_detail_summary(task_data)
             return
 
         # Update-backlog mode
@@ -151,9 +154,7 @@ def design(
             return
 
         # Generate design artifacts
-        detail_level = DetailLevel(detail.lower())
-        console.print("[bold]Generating design artifacts...[/bold]")
-        console.print(f"  Detail level: [cyan]{detail_level.value}[/cyan]\n")
+        console.print("[bold]Generating design artifacts...[/bold]\n")
 
         # Create design.md template
         design_path = spec_dir / "design.md"
@@ -166,15 +167,9 @@ def design(
             task_graph_path,
             feature,
             max_minutes=max_task_minutes,
-            detail_level=detail_level,
+            detail_level=detail,
         )
         console.print(f"  [green]✓[/green] Created {task_graph_path}")
-
-        # Show steps info if generated
-        if detail_level != DetailLevel.STANDARD:
-            task_data = _load_task_graph(task_graph_path)
-            step_count = sum(len(t.get("steps", [])) for t in task_data.get("tasks", []))
-            console.print(f"  [green]✓[/green] Generated {step_count} TDD steps across tasks")
 
         # Generate backlog markdown
         backlog_path = generate_backlog_markdown(
@@ -191,7 +186,7 @@ def design(
         click.echo(f"  ✓ Created {manifest_path}")
 
         # Show summary
-        show_design_summary(spec_dir, feature)
+        show_design_summary(spec_dir, feature, detail_level=detail)
 
         console.print("\n[green]✓[/green] Design artifacts created!")
         console.print("\nNext steps:")
@@ -385,7 +380,7 @@ def create_task_graph_template(
     path: Path,
     feature: str,
     max_minutes: int = 30,
-    detail_level: DetailLevel = DetailLevel.STANDARD,
+    detail_level: str = "standard",
 ) -> None:
     """Create task-graph.json template.
 
@@ -393,7 +388,7 @@ def create_task_graph_template(
         path: Output path
         feature: Feature name
         max_minutes: Max minutes per task
-        detail_level: Detail level for step generation
+        detail_level: Detail level for step generation (standard/medium/high)
     """
     timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -586,25 +581,28 @@ def create_task_graph_template(
     }
 
     # Generate steps for each task if detail level is medium or high
-    if detail_level != DetailLevel.STANDARD:
+    if detail_level in ("medium", "high"):
+        step_generator = StepGenerator(project_root=path.parent.parent.parent)
         for task in task_graph["tasks"]:
-            steps = generate_steps_for_task(
-                task=task,
-                detail_level=detail_level.value,
-                project_root=path.parent.parent.parent,  # .gsd/specs/feature -> project root
-            )
+            steps = step_generator.generate_steps_dict(task, detail_level=detail_level)
             if steps:
                 task["steps"] = steps
+        # Update metadata to reflect step generation
+        task_graph["detail_level"] = detail_level
+        step_count = sum(len(t.get("steps", [])) for t in task_graph["tasks"])
+        console.print(f"  [dim]Generated {step_count} steps across {len(task_graph['tasks'])} tasks[/dim]")
 
     with open(path, "w") as f:
         json.dump(task_graph, f, indent=2)
 
 
-def validate_task_graph(path: Path) -> None:
+def validate_task_graph(path: Path, detail_level: str = "standard") -> None:
     """Validate a task graph file.
 
     Args:
         path: Path to task-graph.json
+        detail_level: Expected detail level (standard/medium/high).
+                     When medium/high, validates step structure.
     """
     console.print(f"[bold]Validating {path}[/bold]\n")
 
@@ -657,24 +655,25 @@ def validate_task_graph(path: Path) -> None:
             if file_type not in files:
                 warnings.append(f"Task {task_id}: missing files.{file_type}")
 
-        # Validate steps if present
-        steps = task.get("steps", [])
-        if steps:
-            valid_actions = {"write_test", "verify_fail", "implement", "verify_pass", "format", "commit"}
-            valid_verify_modes = {"exit_code", "exit_code_nonzero", "none"}
-            for i, step in enumerate(steps, start=1):
-                step_num = step.get("step", i)
-
-                # Check required step fields
-                if "action" not in step:
-                    errors.append(f"Task {task_id} step {step_num}: missing 'action'")
-                elif step.get("action") not in valid_actions:
-                    errors.append(f"Task {task_id} step {step_num}: invalid action '{step.get('action')}'")
-
-                if "verify" not in step:
-                    warnings.append(f"Task {task_id} step {step_num}: missing 'verify'")
-                elif step.get("verify") not in valid_verify_modes:
-                    errors.append(f"Task {task_id} step {step_num}: invalid verify mode '{step.get('verify')}'")
+        # Validate steps structure if detail level is medium/high
+        if detail_level in ("medium", "high"):
+            steps = task.get("steps", [])
+            if not steps:
+                warnings.append(f"Task {task_id}: expected steps for detail level '{detail_level}'")
+            else:
+                # Validate step structure
+                valid_actions = {"write_test", "verify_fail", "implement", "verify_pass", "format", "commit"}
+                valid_verify = {"exit_code", "exit_code_nonzero", "none"}
+                for step in steps:
+                    step_num = step.get("step", "?")
+                    if "action" not in step:
+                        errors.append(f"Task {task_id}, step {step_num}: missing 'action'")
+                    elif step["action"] not in valid_actions:
+                        errors.append(f"Task {task_id}, step {step_num}: invalid action '{step['action']}'")
+                    if "verify" not in step:
+                        errors.append(f"Task {task_id}, step {step_num}: missing 'verify'")
+                    elif step["verify"] not in valid_verify:
+                        errors.append(f"Task {task_id}, step {step_num}: invalid verify '{step['verify']}'")
 
     # Check file ownership conflicts
     file_owners: dict[tuple[Any, ...], Any] = {}
@@ -740,12 +739,13 @@ def validate_task_graph(path: Path) -> None:
     console.print(table)
 
 
-def show_design_summary(spec_dir: Path, feature: str) -> None:
+def show_design_summary(spec_dir: Path, feature: str, detail_level: str = "standard") -> None:
     """Show design summary.
 
     Args:
         spec_dir: Spec directory
         feature: Feature name
+        detail_level: Detail level used for step generation
     """
     console.print("\n[bold]Design Summary[/bold]\n")
 
@@ -759,6 +759,14 @@ def show_design_summary(spec_dir: Path, feature: str) -> None:
     table.add_row("Design", str(spec_dir / "design.md"))
     table.add_row("Task Graph", str(spec_dir / "task-graph.json"))
 
+    # Show detail level with description
+    detail_desc = {
+        "standard": "standard (no steps - classic mode)",
+        "medium": "medium (TDD steps)",
+        "high": "high (TDD steps with code snippets)",
+    }
+    table.add_row("Detail Level", detail_desc.get(detail_level, detail_level))
+
     console.print(table)
 
 
@@ -769,36 +777,6 @@ def _load_task_graph(path: Path) -> dict[str, Any]:
     with open(path) as f:
         result: dict[str, Any] = json.load(f)
         return result
-
-
-def _show_detail_summary(task_data: dict[str, Any]) -> None:
-    """Show summary of detail level and steps in task graph.
-
-    Args:
-        task_data: Parsed task-graph.json data.
-    """
-    tasks = task_data.get("tasks", [])
-    tasks_with_steps = [t for t in tasks if t.get("steps")]
-    total_steps = sum(len(t.get("steps", [])) for t in tasks)
-
-    if tasks_with_steps:
-        console.print("\n[cyan]Detail Level:[/cyan] TDD steps included")
-        console.print(f"  Tasks with steps: {len(tasks_with_steps)}/{len(tasks)}")
-        console.print(f"  Total steps: {total_steps}")
-
-        # Show step breakdown by action type
-        action_counts: dict[str, int] = {}
-        for task in tasks:
-            for step in task.get("steps", []):
-                action = step.get("action", "unknown")
-                action_counts[action] = action_counts.get(action, 0) + 1
-
-        if action_counts:
-            console.print("  Step actions:")
-            for action, count in sorted(action_counts.items()):
-                console.print(f"    - {action}: {count}")
-    else:
-        console.print("\n[cyan]Detail Level:[/cyan] standard (no steps)")
 
 
 def _build_design_manifest(feature: str, task_data: dict[str, Any]) -> dict[str, Any]:
