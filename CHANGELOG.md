@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Added `__all__` exports to `config.py` and `types.py` to clarify public APIs (#106, #107)
+- Documented lazy import pattern in `verify.py` to prevent future regressions (#106)
 - `DependencyChecker` now uses `TaskStatus.COMPLETE.value` instead of hardcoded "COMPLETE" string (#OCF)
 - `WorkerProtocol` now initializes and passes `DependencyChecker` to claim_task for runtime dependency enforcement (#OCF)
 - Lint issues resolved by PR #117 (#104)
