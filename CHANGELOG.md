@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ImportChainChecker` skips imports inside `if TYPE_CHECKING:` blocks (#106)
 - Level filter applied in task claiming to respect current level (#111)
 
+### Removed
+
+- `tests/e2e/test_bugfix_e2e.py` — obsolete tests for pre-deferred-merge behavior
+
 ### Fixed
 
 - Added `__all__` exports to `config.py` and `types.py` to clarify public APIs (#106, #107)
