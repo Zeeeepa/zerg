@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Verification staleness threshold increased from 300s to 1800s (30 min cache) for gate result reuse
 - Improvement loop max iterations reduced from 5 to 1 by default (override with `--iterations N`)
 - Orchestrator reuses post-merge gate results as initial score in improvement loop (eliminates duplicate gate runs)
+- MergeCoordinator now uses GatePipeline for cached gate execution, reducing merge gate runs from 6+ to 1-2 per level (FR-perf)
 - `CrossFileChecker` now includes same-module usage, skips exception classes and TYPE_CHECKING imports (#106, #107)
 - `ImportChainChecker` skips imports inside `if TYPE_CHECKING:` blocks (#106)
 - Level filter applied in task claiming to respect current level (#111)

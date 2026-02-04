@@ -812,6 +812,219 @@ class TestGateExecutionIntegration:
         assert call_kwargs.get("gates") == config.quality_gates
 
 
+class TestGatePipelineCaching:
+    """Tests for GatePipeline caching in merge gates (FR-perf)."""
+
+    def test_pre_merge_uses_gate_pipeline_when_provided(self):
+        """When GatePipeline is provided, pre-merge gates should use cached execution."""
+        config = ZergConfig()
+        config.quality_gates = [
+            QualityGate(name="lint", command="echo lint", required=True),
+            QualityGate(name="test", command="echo test", required=True),
+        ]
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.run_gates_for_level.return_value = [
+            GateRunResult(
+                gate_name="lint",
+                result=GateResult.PASS,
+                command="echo lint",
+                exit_code=0,
+                duration_ms=50,
+            ),
+            GateRunResult(
+                gate_name="test",
+                result=GateResult.PASS,
+                command="echo test",
+                exit_code=0,
+                duration_ms=100,
+            ),
+        ]
+
+        with patch("zerg.merge.GateRunner"):
+            with patch("zerg.merge.GitOps"):
+                coordinator = MergeCoordinator(
+                    feature="test-feature",
+                    config=config,
+                    gate_pipeline=mock_pipeline,
+                )
+
+        all_passed, results = coordinator.run_pre_merge_gates()
+
+        # Should use pipeline, not direct GateRunner
+        mock_pipeline.run_gates_for_level.assert_called_once()
+        assert all_passed is True
+        assert len(results) == 2
+
+    def test_post_merge_uses_gate_pipeline_when_provided(self):
+        """When GatePipeline is provided, post-merge gates should use cached execution."""
+        config = ZergConfig()
+        config.quality_gates = [
+            QualityGate(name="lint", command="echo lint", required=True),
+        ]
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.run_gates_for_level.return_value = [
+            GateRunResult(
+                gate_name="lint",
+                result=GateResult.PASS,
+                command="echo lint",
+                exit_code=0,
+                duration_ms=50,
+            ),
+        ]
+
+        with patch("zerg.merge.GateRunner"):
+            with patch("zerg.merge.GitOps"):
+                coordinator = MergeCoordinator(
+                    feature="test-feature",
+                    config=config,
+                    gate_pipeline=mock_pipeline,
+                )
+
+        all_passed, results = coordinator.run_post_merge_gates()
+
+        mock_pipeline.run_gates_for_level.assert_called_once()
+        assert all_passed is True
+
+    def test_post_merge_uses_different_cache_key(self):
+        """Post-merge should use different cache key (level + 1000) from pre-merge."""
+        config = ZergConfig()
+        config.quality_gates = [
+            QualityGate(name="lint", command="echo lint", required=True),
+        ]
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.run_gates_for_level.return_value = [
+            GateRunResult(
+                gate_name="lint",
+                result=GateResult.PASS,
+                command="echo lint",
+                exit_code=0,
+                duration_ms=50,
+            ),
+        ]
+
+        with patch("zerg.merge.GateRunner"):
+            with patch("zerg.merge.GitOps"):
+                coordinator = MergeCoordinator(
+                    feature="test-feature",
+                    config=config,
+                    gate_pipeline=mock_pipeline,
+                )
+
+        # Set current level
+        coordinator._current_level = 2
+
+        coordinator.run_pre_merge_gates()
+        coordinator.run_post_merge_gates()
+
+        # Check that different levels were used for caching
+        calls = mock_pipeline.run_gates_for_level.call_args_list
+        assert len(calls) == 2
+        pre_merge_level = calls[0][1]["level"]
+        post_merge_level = calls[1][1]["level"]
+        assert pre_merge_level == 2  # Current level
+        assert post_merge_level == 1002  # Level + 1000
+
+    def test_fallback_to_gate_runner_when_no_pipeline(self):
+        """When no GatePipeline provided, should fall back to GateRunner."""
+        config = ZergConfig()
+        config.quality_gates = [
+            QualityGate(name="lint", command="echo lint", required=True),
+        ]
+
+        mock_gate_runner = MagicMock(spec=GateRunner)
+        mock_gate_runner.run_all_gates.return_value = (
+            True,
+            [
+                GateRunResult(
+                    gate_name="lint",
+                    result=GateResult.PASS,
+                    command="echo lint",
+                    exit_code=0,
+                    duration_ms=50,
+                ),
+            ],
+        )
+        mock_gate_runner.get_summary.return_value = {
+            "total": 1,
+            "passed": 1,
+            "failed": 0,
+            "timeout": 0,
+            "error": 0,
+            "skipped": 0,
+        }
+
+        with patch("zerg.merge.GateRunner", return_value=mock_gate_runner):
+            with patch("zerg.merge.GitOps"):
+                coordinator = MergeCoordinator(
+                    feature="test-feature",
+                    config=config,
+                    # No gate_pipeline provided
+                )
+
+        all_passed, results = coordinator.run_pre_merge_gates()
+
+        # Should use GateRunner directly
+        mock_gate_runner.run_all_gates.assert_called_once()
+        assert all_passed is True
+
+    def test_pipeline_failure_returns_false(self):
+        """When pipeline returns failed gates, should return False."""
+        config = ZergConfig()
+        config.quality_gates = [
+            QualityGate(name="lint", command="echo lint", required=True),
+        ]
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.run_gates_for_level.return_value = [
+            GateRunResult(
+                gate_name="lint",
+                result=GateResult.FAIL,
+                command="echo lint",
+                exit_code=1,
+                stderr="Lint failed",
+                duration_ms=50,
+            ),
+        ]
+
+        with patch("zerg.merge.GateRunner"):
+            with patch("zerg.merge.GitOps"):
+                coordinator = MergeCoordinator(
+                    feature="test-feature",
+                    config=config,
+                    gate_pipeline=mock_pipeline,
+                )
+
+        all_passed, results = coordinator.run_pre_merge_gates()
+
+        assert all_passed is False
+        assert results[0].result == GateResult.FAIL
+
+    def test_full_merge_flow_sets_current_level(self):
+        """full_merge_flow should set _current_level for cache key."""
+        config = ZergConfig()
+        config.quality_gates = []
+
+        mock_git = MagicMock()
+        mock_git.list_worker_branches.return_value = ["branch-1"]
+        mock_git.create_staging_branch.return_value = "staging"
+        mock_git.merge.return_value = "abc123"
+
+        with patch("zerg.merge.GateRunner"):
+            with patch("zerg.merge.GitOps", return_value=mock_git):
+                coordinator = MergeCoordinator(
+                    feature="test-feature",
+                    config=config,
+                )
+
+        result = coordinator.full_merge_flow(level=3, skip_gates=True)
+
+        assert coordinator._current_level == 3
+        assert result.success is True
+
+
 class TestPostMergeGates:
     """Tests for run_post_merge_gates consistency with run_pre_merge_gates."""
 

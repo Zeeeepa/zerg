@@ -3,6 +3,8 @@
 Provides pluggable launcher backends for spawning and managing worker processes.
 """
 
+from __future__ import annotations
+
 import asyncio
 import os
 import subprocess
@@ -13,7 +15,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from zerg.heartbeat import HeartbeatMonitor
 
 from zerg.constants import LOGS_TASKS_DIR, LOGS_WORKERS_DIR, WorkerStatus
 from zerg.logging import get_logger
@@ -119,7 +124,7 @@ def validate_env_vars(env: dict[str, str]) -> dict[str, str]:
     return validated
 
 
-def get_plugin_launcher(name: str, registry: "Any") -> "WorkerLauncher | None":
+def get_plugin_launcher(name: str, registry: Any) -> WorkerLauncher | None:
     """Look up a launcher from the plugin registry.
 
     Args:
@@ -166,7 +171,7 @@ class SpawnResult:
 
     success: bool
     worker_id: int
-    handle: "WorkerHandle | None" = None
+    handle: WorkerHandle | None = None
     error: str | None = None
 
 
@@ -180,6 +185,8 @@ class WorkerHandle:
     status: WorkerStatus = WorkerStatus.INITIALIZING
     started_at: datetime = field(default_factory=datetime.now)
     exit_code: int | None = None
+    # FR-1: Track last health check for cooldown caching
+    health_check_at: datetime | None = None
 
     def is_alive(self) -> bool:
         """Check if worker is still running."""
@@ -562,6 +569,17 @@ class SubprocessLauncher(WorkerLauncher):
         super().__init__(config)
         self._processes: dict[int, subprocess.Popen[bytes]] = {}
         self._output_buffers: dict[int, list[str]] = {}
+        # FR-4: Cache HeartbeatMonitor instance instead of creating per-call
+        self._heartbeat_monitor: HeartbeatMonitor | None = None
+
+    @property
+    def heartbeat_monitor(self) -> HeartbeatMonitor:
+        """Lazy singleton for HeartbeatMonitor (FR-4)."""
+        if self._heartbeat_monitor is None:
+            from zerg.heartbeat import HeartbeatMonitor
+
+            self._heartbeat_monitor = HeartbeatMonitor()
+        return self._heartbeat_monitor
 
     def spawn(
         self,
@@ -702,11 +720,9 @@ class SubprocessLauncher(WorkerLauncher):
             if handle.status == WorkerStatus.INITIALIZING:
                 handle.status = WorkerStatus.RUNNING
             # Check heartbeat for stall detection
+            # FR-4: Use cached HeartbeatMonitor instance
             if handle.status == WorkerStatus.RUNNING:
-                from zerg.heartbeat import HeartbeatMonitor
-
-                hb_monitor = HeartbeatMonitor()
-                hb = hb_monitor.read(worker_id)
+                hb = self.heartbeat_monitor.read(worker_id)
                 if hb and hb.is_stale(120):  # default stall timeout
                     handle.status = WorkerStatus.STALLED
             return handle.status
@@ -1067,6 +1083,8 @@ class ContainerLauncher(WorkerLauncher):
     DEFAULT_NETWORK = "bridge"
     CONTAINER_PREFIX = "zerg-worker"
     WORKER_ENTRY_SCRIPT = ".zerg/worker_entry.sh"
+    # Performance: Skip docker calls if status was checked recently (FR-1)
+    MONITOR_COOLDOWN_SECONDS = 10
 
     def __init__(
         self,
@@ -1469,6 +1487,13 @@ class ContainerLauncher(WorkerLauncher):
         if not handle or not container_id:
             return WorkerStatus.STOPPED
 
+        # FR-1: Check cooldown - skip docker calls if checked recently
+        # This reduces docker subprocess overhead from 120+/min to ~20-30/min
+        if handle.health_check_at:
+            age = (datetime.now() - handle.health_check_at).total_seconds()
+            if age < self.MONITOR_COOLDOWN_SECONDS:
+                return handle.status
+
         try:
             # Check container state
             result = subprocess.run(
@@ -1524,6 +1549,10 @@ class ContainerLauncher(WorkerLauncher):
         except Exception as e:
             logger.error(f"Failed to monitor container: {e}")
             return handle.status if handle else WorkerStatus.STOPPED
+        finally:
+            # FR-1: Update timestamp after actual docker check
+            if handle:
+                handle.health_check_at = datetime.now()
 
     def terminate(self, worker_id: int, force: bool = False) -> bool:
         """Terminate a worker container.

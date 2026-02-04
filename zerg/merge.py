@@ -1,17 +1,22 @@
 """Merge coordination for ZERG level completion."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from zerg.config import ZergConfig
-from zerg.constants import MergeStatus
+from zerg.constants import GateResult, MergeStatus
 from zerg.exceptions import MergeConflictError
 from zerg.gates import GateRunner
 from zerg.git_ops import GitOps
 from zerg.logging import get_logger
 from zerg.types import GateRunResult, MergeResult
+
+if TYPE_CHECKING:
+    from zerg.level_coordinator import GatePipeline
 
 logger = get_logger("merge")
 
@@ -51,6 +56,7 @@ class MergeCoordinator:
         feature: str,
         config: ZergConfig | None = None,
         repo_path: str | Path = ".",
+        gate_pipeline: GatePipeline | None = None,
     ) -> None:
         """Initialize merge coordinator.
 
@@ -58,12 +64,15 @@ class MergeCoordinator:
             feature: Feature name
             config: ZERG configuration
             repo_path: Path to git repository
+            gate_pipeline: Optional GatePipeline for cached gate execution
         """
         self.feature = feature
         self.config = config or ZergConfig.load()
         self.repo_path = Path(repo_path).resolve()
         self.git = GitOps(repo_path)
         self.gates = GateRunner(self.config)
+        self._gate_pipeline = gate_pipeline
+        self._current_level: int = 0  # Track level for cache key
 
     def prepare_merge(self, level: int, target_branch: str = "main") -> str:
         """Prepare for merge by creating staging branch.
@@ -86,6 +95,9 @@ class MergeCoordinator:
     ) -> tuple[bool, list[GateRunResult]]:
         """Run pre-merge quality gates.
 
+        Uses cached results from GatePipeline if available, falling back to
+        direct GateRunner execution otherwise.
+
         Args:
             cwd: Working directory
             skip_tests: Skip test gates (run lint only for faster iteration)
@@ -100,8 +112,26 @@ class MergeCoordinator:
             gates = [g for g in gates if g.name != "test"]
             logger.info("Skipping test gate (--skip-tests mode)")
 
+        # Filter to required gates only
+        required_gates = [g for g in gates if g.required]
+
+        # Use cached pipeline if available (FR-perf: avoid duplicate gate runs)
+        if self._gate_pipeline:
+            logger.info("Using cached gate pipeline for pre-merge gates")
+            results = self._gate_pipeline.run_gates_for_level(
+                level=self._current_level,
+                gates=required_gates,
+                cwd=cwd,
+            )
+            all_passed = all(r.result == GateResult.PASS for r in results)
+            passed_count = sum(1 for r in results if r.result == GateResult.PASS)
+            failed_count = len(results) - passed_count
+            logger.info(f"Pre-merge gates: {passed_count} passed, {failed_count} failed")
+            return all_passed, results
+
+        # Fallback to uncached execution
         all_passed, results = self.gates.run_all_gates(
-            gates=gates,
+            gates=required_gates,
             cwd=cwd,
             required_only=True,
         )
@@ -172,6 +202,10 @@ class MergeCoordinator:
     ) -> tuple[bool, list[GateRunResult]]:
         """Run post-merge quality gates.
 
+        Uses cached results from GatePipeline if available. For post-merge,
+        we use a different cache key (level + 1000) to distinguish from
+        pre-merge gates while still benefiting from staleness checking.
+
         Args:
             cwd: Working directory
             skip_tests: Skip test gates (run lint only for faster iteration)
@@ -186,9 +220,27 @@ class MergeCoordinator:
             gates = [g for g in gates if g.name != "test"]
             logger.info("Skipping test gate (--skip-tests mode)")
 
-        # Post-merge gates might include integration tests
+        # Filter to required gates only
+        required_gates = [g for g in gates if g.required]
+
+        # Use cached pipeline if available (FR-perf: avoid duplicate gate runs)
+        # Post-merge uses level + 1000 as cache key to distinguish from pre-merge
+        if self._gate_pipeline:
+            logger.info("Using cached gate pipeline for post-merge gates")
+            results = self._gate_pipeline.run_gates_for_level(
+                level=self._current_level + 1000,  # Distinct cache key for post-merge
+                gates=required_gates,
+                cwd=cwd,
+            )
+            all_passed = all(r.result == GateResult.PASS for r in results)
+            passed_count = sum(1 for r in results if r.result == GateResult.PASS)
+            failed_count = len(results) - passed_count
+            logger.info(f"Post-merge gates: {passed_count} passed, {failed_count} failed")
+            return all_passed, results
+
+        # Fallback to uncached execution
         all_passed, results = self.gates.run_all_gates(
-            gates=gates,
+            gates=required_gates,
             cwd=cwd,
             required_only=True,
         )
@@ -260,6 +312,9 @@ class MergeCoordinator:
             MergeFlowResult with outcome
         """
         logger.info(f"Starting full merge flow for level {level}")
+
+        # Set current level for cache key (FR-perf)
+        self._current_level = level
 
         # Auto-detect worker branches if not provided
         if worker_branches is None:

@@ -8,6 +8,7 @@ Verifies:
 
 from __future__ import annotations
 
+import inspect
 from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
@@ -173,3 +174,56 @@ class TestConfigPerformanceSettings:
         config = ZergConfig.load()
         # Should have improvement_loops section
         assert hasattr(config, "improvement_loops") or True  # May not be loaded yet
+
+
+class TestMonitoringOptimizations:
+    """Tests for rush-perf-fix monitoring optimizations (FR-1, FR-2, FR-4)."""
+
+    def test_orchestrator_poll_interval_is_15_seconds(self) -> None:
+        """Test that orchestrator uses 15s poll interval (FR-2)."""
+        from zerg.orchestrator import Orchestrator
+
+        # Create minimal mock to just check the attribute is set to 15
+        with patch.object(Orchestrator, "__init__", lambda self, **kwargs: None):
+            orch = object.__new__(Orchestrator)
+            # Manually set poll interval to verify the expected value
+            orch._poll_interval = 15
+
+        # Verify the actual code sets poll_interval to 15 by checking source
+        source = inspect.getsource(Orchestrator.__init__)
+        assert "_poll_interval = 15" in source
+
+    def test_container_launcher_has_monitor_cooldown_constant(self) -> None:
+        """Test that ContainerLauncher has MONITOR_COOLDOWN_SECONDS (FR-1)."""
+        from zerg.launcher import ContainerLauncher
+
+        launcher = ContainerLauncher()
+        assert hasattr(launcher, "MONITOR_COOLDOWN_SECONDS")
+        assert launcher.MONITOR_COOLDOWN_SECONDS == 10
+
+    def test_subprocess_launcher_has_heartbeat_monitor_property(self) -> None:
+        """Test that SubprocessLauncher has heartbeat_monitor singleton (FR-4)."""
+        from zerg.launcher import SubprocessLauncher
+
+        # Verify the property exists
+        assert hasattr(SubprocessLauncher, "heartbeat_monitor")
+
+        # Verify it's a property descriptor
+        assert isinstance(getattr(SubprocessLauncher, "heartbeat_monitor"), property)
+
+        # Verify the singleton behavior by checking the property returns same instance
+        launcher = SubprocessLauncher()
+        monitor1 = launcher.heartbeat_monitor
+        monitor2 = launcher.heartbeat_monitor
+        assert monitor1 is monitor2
+
+    def test_worker_handle_has_health_check_at_field(self) -> None:
+        """Test that WorkerHandle has health_check_at field (FR-1)."""
+        from zerg.launcher import WorkerHandle
+
+        handle = WorkerHandle(worker_id=0)
+
+        # Should have the field
+        assert hasattr(handle, "health_check_at")
+        # Should default to None
+        assert handle.health_check_at is None

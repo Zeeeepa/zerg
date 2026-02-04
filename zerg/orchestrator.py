@@ -179,7 +179,7 @@ class Orchestrator:
         self._workers: dict[int, WorkerState] = {}
         self._on_task_complete: list[Callable[[str], None]] = []
         self._on_level_complete: list[Callable[[int], None]] = []
-        self._poll_interval = 5  # seconds
+        self._poll_interval = 15  # seconds (FR-2: reduced from 5s for lower monitoring overhead)
         self._max_retry_attempts = self.config.workers.retry_attempts
         self._restart_counts: dict[int, int] = {}  # worker_id -> restart count
         self._respawn_counts: dict[int, int] = {}  # worker_id -> respawn count for auto_respawn
@@ -262,6 +262,8 @@ class Orchestrator:
                 artifacts_dir=artifacts_dir,
                 staleness_threshold_seconds=self._capabilities.staleness_threshold,
             )
+            # FR-perf: Wire pipeline to merger for cached merge gate execution
+            self.merger._gate_pipeline = self._gate_pipeline
             logger.info(f"Gate pipeline enabled: staleness_threshold={self._capabilities.staleness_threshold}s")
 
         # Create mode context from resolved capabilities

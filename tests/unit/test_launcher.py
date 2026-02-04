@@ -548,6 +548,46 @@ class TestSubprocessLauncherMonitor:
         assert status == WorkerStatus.CRASHED
 
 
+class TestSubprocessLauncherHeartbeatMonitor:
+    """Tests for SubprocessLauncher.heartbeat_monitor singleton (FR-4)."""
+
+    def test_heartbeat_monitor_returns_same_instance(self) -> None:
+        """Test heartbeat_monitor property returns the same instance (singleton)."""
+        launcher = SubprocessLauncher()
+
+        # Access the property multiple times
+        monitor1 = launcher.heartbeat_monitor
+        monitor2 = launcher.heartbeat_monitor
+        monitor3 = launcher.heartbeat_monitor
+
+        # All should be the same object
+        assert monitor1 is monitor2
+        assert monitor2 is monitor3
+
+    def test_heartbeat_monitor_lazily_initialized(self) -> None:
+        """Test heartbeat_monitor is lazily initialized."""
+        launcher = SubprocessLauncher()
+
+        # Initially should be None
+        assert launcher._heartbeat_monitor is None
+
+        # Access the property
+        monitor = launcher.heartbeat_monitor
+
+        # Now should be set
+        assert launcher._heartbeat_monitor is monitor
+        assert monitor is not None
+
+    def test_heartbeat_monitor_type(self) -> None:
+        """Test heartbeat_monitor returns HeartbeatMonitor instance."""
+        from zerg.heartbeat import HeartbeatMonitor
+
+        launcher = SubprocessLauncher()
+        monitor = launcher.heartbeat_monitor
+
+        assert isinstance(monitor, HeartbeatMonitor)
+
+
 class TestSubprocessLauncherTerminate:
     """Tests for SubprocessLauncher.terminate method."""
 
@@ -1403,6 +1443,97 @@ class TestContainerLauncherMonitor:
 
         # Should return current status on exception
         assert status == WorkerStatus.RUNNING
+
+    @patch("subprocess.run")
+    def test_monitor_cooldown_returns_cached_status(self, mock_run: MagicMock) -> None:
+        """Test monitor returns cached status within cooldown period (FR-1)."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="true,0\n", stderr="")
+
+        launcher = ContainerLauncher()
+        handle = WorkerHandle(
+            worker_id=0,
+            container_id="container-abc",
+            status=WorkerStatus.RUNNING,
+            health_check_at=datetime.now(),  # Just checked
+        )
+        launcher._workers[0] = handle
+        launcher._container_ids[0] = "container-abc"
+
+        # Should return cached status without calling docker
+        status = launcher.monitor(0)
+
+        assert status == WorkerStatus.RUNNING
+        # Docker should NOT have been called due to cooldown
+        mock_run.assert_not_called()
+
+    @patch("subprocess.run")
+    def test_monitor_cooldown_calls_docker_after_expiry(self, mock_run: MagicMock) -> None:
+        """Test monitor calls docker after cooldown expires (FR-1)."""
+        from datetime import timedelta
+
+        mock_run.return_value = MagicMock(returncode=0, stdout="true,0\n", stderr="")
+
+        launcher = ContainerLauncher()
+        # Set health_check_at to 15 seconds ago (beyond 10s cooldown)
+        old_check_time = datetime.now() - timedelta(seconds=15)
+        handle = WorkerHandle(
+            worker_id=0,
+            container_id="container-abc",
+            status=WorkerStatus.RUNNING,
+            health_check_at=old_check_time,
+        )
+        launcher._workers[0] = handle
+        launcher._container_ids[0] = "container-abc"
+
+        status = launcher.monitor(0)
+
+        assert status == WorkerStatus.RUNNING
+        # Docker SHOULD have been called since cooldown expired
+        mock_run.assert_called()
+
+    @patch("subprocess.run")
+    def test_monitor_no_cooldown_for_new_workers(self, mock_run: MagicMock) -> None:
+        """Test monitor calls docker for workers with no health_check_at (FR-1)."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="true,0\n", stderr="")
+
+        launcher = ContainerLauncher()
+        handle = WorkerHandle(
+            worker_id=0,
+            container_id="container-abc",
+            status=WorkerStatus.RUNNING,
+            health_check_at=None,  # New worker, never checked
+        )
+        launcher._workers[0] = handle
+        launcher._container_ids[0] = "container-abc"
+
+        status = launcher.monitor(0)
+
+        assert status == WorkerStatus.RUNNING
+        # Docker SHOULD be called for new workers
+        mock_run.assert_called()
+
+    @patch("subprocess.run")
+    def test_monitor_updates_health_check_at(self, mock_run: MagicMock) -> None:
+        """Test monitor updates health_check_at after docker call (FR-1)."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="true,0\n", stderr="")
+
+        launcher = ContainerLauncher()
+        handle = WorkerHandle(
+            worker_id=0,
+            container_id="container-abc",
+            status=WorkerStatus.RUNNING,
+            health_check_at=None,
+        )
+        launcher._workers[0] = handle
+        launcher._container_ids[0] = "container-abc"
+
+        before_monitor = datetime.now()
+        launcher.monitor(0)
+        after_monitor = datetime.now()
+
+        # health_check_at should be updated
+        assert handle.health_check_at is not None
+        assert before_monitor <= handle.health_check_at <= after_monitor
 
 
 class TestContainerLauncherTerminate:
