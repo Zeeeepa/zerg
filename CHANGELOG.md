@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- State machine validation in `StateManager.set_task_status()` with warning on invalid transitions (#110)
+- `get_tasks_by_status_and_level()` method for combined status and level filtering (#111)
+- Pause check in `claim_next_task()` and `claim_next_task_async()` for graceful pause handling (#108)
+- Worker timeout watchdog with configurable timeout and exit code 124 (#109)
+- `collect_same_module_usage()` in AST cache for improved cross-file analysis (#106)
+
+### Changed
+
+- `CrossFileChecker` now includes same-module usage, skips exception classes and TYPE_CHECKING imports (#106, #107)
+- `ImportChainChecker` skips imports inside `if TYPE_CHECKING:` blocks (#106)
+- Level filter applied in task claiming to respect current level (#111)
+
+### Fixed
+
+- Lint issues resolved by PR #117 (#104)
+- Task prefixes added to all ZERG command files for Claude Task integration (#105)
+- Removed confirmed dead code after improved `CrossFileChecker` analysis (#107)
+
 ### Changed
 
 - Simplified pre-commit configuration: removed mypy, bandit, and custom hooks to speed up commits
