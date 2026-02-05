@@ -272,10 +272,10 @@ class TestExecute:
         assert "hello" in result.stdout
 
     def test_execute_failure(self, tmp_path: Path) -> None:
-        """Test failed command execution."""
+        """Test failed command execution using allowlisted command."""
         executor = CommandExecutor(working_dir=tmp_path)
 
-        result = executor.execute("python -c 'exit(1)'")
+        result = executor.execute("false")  # 'false' always exits with code 1
 
         assert result.success is False
         assert result.exit_code == 1
@@ -418,13 +418,15 @@ class TestExecutePython:
     """Tests for Python command execution."""
 
     def test_execute_python(self, tmp_path: Path) -> None:
-        """Test Python command execution."""
+        """Test Python -m command execution (allowlisted pattern)."""
         executor = CommandExecutor(working_dir=tmp_path)
 
-        result = executor.execute_python("-c", "print('hello')")
+        # Use 'python -m' which is allowlisted, not 'python -c' which was removed
+        result = executor.execute_python("-m", "platform")
 
         assert result.success is True
-        assert "hello" in result.stdout
+        # 'python -m platform' outputs Python/OS version info
+        assert len(result.stdout) > 0
 
 
 class TestModuleFunctions:
