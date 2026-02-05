@@ -147,11 +147,11 @@ class TestCIWorkflow:
         assert has_pytest, "Workflow must run pytest"
 
     def test_workflow_runs_validate_commands(self, workflow: dict) -> None:
-        """Test job must run validate_commands."""
-        steps = workflow["jobs"]["test"]["steps"]
+        """Integration job must run validate_commands."""
+        steps = workflow["jobs"]["integration"]["steps"]
         step_runs = [s.get("run", "") for s in steps]
         has_validate = any("validate_commands" in run for run in step_runs)
-        assert has_validate, "Workflow must run validate_commands"
+        assert has_validate, "Integration job must run validate_commands"
 
     def test_workflow_triggers_on_pr(self, workflow: dict) -> None:
         """Workflow must trigger on pull requests."""

@@ -241,9 +241,11 @@ class TestContainerLauncher:
     @patch("subprocess.run")
     def test_monitor_running(self, mock_run: MagicMock, tmp_path: Path) -> None:
         """Test monitoring running container."""
-        # Setup container
+        # Setup container - use real WorkerHandle to avoid MagicMock comparison issues
+        from zerg.launcher import WorkerHandle
+
         launcher = ContainerLauncher()
-        launcher._workers[0] = MagicMock(status=WorkerStatus.RUNNING)
+        launcher._workers[0] = WorkerHandle(worker_id=0, container_id="abc123")
         launcher._container_ids[0] = "abc123"
 
         # Mock docker inspect
