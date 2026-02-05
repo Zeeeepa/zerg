@@ -8,6 +8,32 @@
 
 ---
 
+## Why I Built This
+
+Every time I started a new project with Claude Code, I found myself doing the same setup work over and over:
+
+- **Secure coding rules.** Manually writing OWASP guidelines, language-specific security patterns, and Docker hardening rules into CLAUDE.md so Claude would actually follow them. Every. Single. Time.
+- **Dev containers.** Configuring Dockerfiles, devcontainer.json, MCP servers, and post-create scripts so workers could run in isolated environments.
+- **Project scaffolding.** Setting up directory structures, config files, linting, pre-commit hooks — the same boilerplate for every repo.
+- **Parallel execution.** Claude Code is powerful, but it's one instance. For any feature with 10+ files, I'd spend hours watching a single agent work sequentially through tasks that could run in parallel.
+- **Context rot.** The bigger the feature, the more Claude forgets. By the time it's working on file 15, it's lost track of the decisions it made in file 3.
+
+I got tired of the repetition. So I built a system that handles all of it:
+
+**ZERG auto-detects your stack** and fetches stack-specific security rules (OWASP Top 10 2025, Python, JavaScript, Docker) from [TikiTribe/claude-secure-coding-rules](https://github.com/TikiTribe/claude-secure-coding-rules) — no manual CLAUDE.md maintenance.
+
+**ZERG generates dev containers** with your detected languages, MCP server configs, and authentication baked in — workers spin up in isolated Docker environments with a single flag.
+
+**ZERG breaks features into parallel tasks** with exclusive file ownership, so 5-10 Claude Code instances work simultaneously without merge conflicts. A feature that takes one agent 2 hours takes a swarm 20 minutes.
+
+**ZERG solves context rot** through spec-driven execution. Workers read specification files, not conversation history. Every zergling is stateless — crash one, restart it, and it picks up exactly where it left off.
+
+**ZERG engineers context** per worker. Large command files are split into core (~30%) and reference (~70%) segments. Security rules are filtered by file extension. Each task gets a scoped context budget instead of loading entire spec files. Workers use fewer tokens and stay focused.
+
+The goal was simple: stop repeating myself and start shipping faster. ZERG is the result of wanting one command to set up security, containers, scaffolding, and parallel execution — then getting out of the way.
+
+---
+
 ## Quick Start (5 minutes)
 
 ```bash
