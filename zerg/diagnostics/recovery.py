@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import subprocess
+import shlex
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from zerg.command_executor import CommandValidationError, get_executor
 from zerg.logging import get_logger
 
 if TYPE_CHECKING:
@@ -180,6 +181,10 @@ RECOVERY_TEMPLATES: dict[str, list[RecoveryStep]] = {
 class RecoveryPlanner:
     """Generate and execute recovery plans from diagnostic results."""
 
+    def __init__(self) -> None:
+        """Initialize the recovery planner with a secure command executor."""
+        self._executor = get_executor(allow_unlisted=True, timeout=SUBPROCESS_TIMEOUT)
+
     def plan(
         self,
         result: DiagnosticResult,
@@ -260,8 +265,8 @@ class RecoveryPlanner:
 
         for tmpl in template:
             cmd = tmpl.command.format(
-                feature=feature,
-                worker_id=worker_id,
+                feature=shlex.quote(feature),
+                worker_id=shlex.quote(worker_id) if worker_id else "",
                 port="",
             )
             steps.append(
@@ -365,17 +370,16 @@ class RecoveryPlanner:
             return {"success": False, "output": "Skipped by user", "skipped": True}
 
         try:
-            result = subprocess.run(
+            result = self._executor.execute(
                 step.command,
-                shell=True,
-                capture_output=True,
-                text=True,
                 timeout=SUBPROCESS_TIMEOUT,
             )
             return {
-                "success": result.returncode == 0,
+                "success": result.success,
                 "output": result.stdout or result.stderr,
                 "skipped": False,
             }
-        except (subprocess.TimeoutExpired, OSError) as e:
+        except CommandValidationError as e:
+            return {"success": False, "output": f"Command validation failed: {e}", "skipped": False}
+        except OSError as e:
             return {"success": False, "output": str(e), "skipped": False}

@@ -87,7 +87,6 @@ ALLOWED_COMMAND_PREFIXES: dict[str, CommandCategory] = {
     "npm run test": CommandCategory.TESTING,
     "npm run lint": CommandCategory.LINTING,
     "npm run build": CommandCategory.BUILDING,
-    "npx": CommandCategory.SYSTEM,
     "yarn test": CommandCategory.TESTING,
     "yarn lint": CommandCategory.LINTING,
     "yarn build": CommandCategory.BUILDING,
@@ -133,8 +132,6 @@ ALLOWED_COMMAND_PREFIXES: dict[str, CommandCategory] = {
     "true": CommandCategory.SYSTEM,
     "false": CommandCategory.SYSTEM,
     # Python
-    "python -c": CommandCategory.SYSTEM,
-    "python3 -c": CommandCategory.SYSTEM,
     "python -m": CommandCategory.SYSTEM,
     "python3 -m": CommandCategory.SYSTEM,
 }
@@ -201,6 +198,13 @@ class CommandExecutor:
         self.timeout = timeout
         self.audit_log = audit_log
         self.trust_commands = trust_commands
+
+        # Deprecation warning for trust_commands
+        if trust_commands:
+            logger.warning(
+                "trust_commands=True is deprecated and will be removed in a future version. "
+                "Add specific command patterns to custom_allowlist instead."
+            )
 
         # Build allowlist
         self.allowlist = ALLOWED_COMMAND_PREFIXES.copy()

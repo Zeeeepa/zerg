@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 
+from zerg.command_executor import CommandValidationError, get_executor
 from zerg.diagnostics.knowledge_base import KnownPattern, PatternMatcher
 from zerg.diagnostics.types import (
     ErrorCategory,
@@ -157,27 +158,17 @@ class HypothesisGenerator:
 class HypothesisTestRunner:
     """Run test commands to validate hypotheses."""
 
-    SAFE_PREFIXES: list[str] = [
-        "python",
-        "pip",
-        "git",
-        "ls",
-        "cat",
-        "zerg",
-        "docker",
-        "node",
-        "npm",
-        "which",
-        "echo",
-        "test",
-    ]
+    def __init__(self) -> None:
+        """Initialize with a secure command executor."""
+        self._executor = get_executor()
 
     def can_test(self, hypothesis: ScoredHypothesis) -> bool:
         """Check if hypothesis has a testable, safe command."""
         cmd = hypothesis.test_command.strip()
         if not cmd:
             return False
-        return any(cmd.startswith(prefix) for prefix in self.SAFE_PREFIXES)
+        is_valid, _reason, _category = self._executor.validate_command(cmd)
+        return is_valid
 
     def test(self, hypothesis: ScoredHypothesis, timeout: int = 30) -> ScoredHypothesis:
         """Run the hypothesis test command and update scoring.
@@ -191,19 +182,19 @@ class HypothesisTestRunner:
             return hypothesis
 
         try:
-            result = subprocess.run(  # noqa: S602
+            result = self._executor.execute(
                 hypothesis.test_command,
-                shell=True,
-                capture_output=True,
                 timeout=timeout,
-                text=True,
+                capture_output=True,
             )
-            if result.returncode == 0:
+            if result.success:
                 hypothesis.test_result = "PASSED"
                 hypothesis.posterior_probability = min(0.99, hypothesis.posterior_probability * 1.5)
             else:
                 hypothesis.test_result = "FAILED"
                 hypothesis.posterior_probability = max(0.01, hypothesis.posterior_probability * 0.5)
+        except CommandValidationError as exc:
+            hypothesis.test_result = f"ERROR: validation failed - {exc}"
         except subprocess.TimeoutExpired:
             hypothesis.test_result = f"ERROR: timeout after {timeout}s"
         except Exception as exc:  # noqa: BLE001

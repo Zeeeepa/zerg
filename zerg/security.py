@@ -310,18 +310,32 @@ def run_security_scan(path: str | Path = ".") -> dict[str, Any]:
         "sensitive_files": [],
         "non_ascii_files": [],
         "large_files": [],
+        "symlink_violations": [],
         "passed": True,
     }
 
     # Collect all files
     all_files = []
-    for root, dirs, files in os.walk(scan_path):
+    for root, dirs, files in os.walk(scan_path, followlinks=False):
         # Skip git and cache directories
         skip = {".git", "__pycache__", "node_modules", ".venv", "venv"}
         dirs[:] = [d for d in dirs if d not in skip]
 
         for f in files:
-            all_files.append(os.path.join(root, f))
+            filepath = os.path.join(root, f)
+
+            # Validate path stays within scan boundary (defense against symlink escapes)
+            try:
+                resolved = Path(filepath).resolve()
+                if not resolved.is_relative_to(scan_path):
+                    logger.warning(f"Symlink escape detected, skipping: {filepath}")
+                    results["symlink_violations"].append(filepath)
+                    continue
+            except (OSError, ValueError) as e:
+                logger.warning(f"Path resolution error, skipping {filepath}: {e}")
+                continue
+
+            all_files.append(str(resolved))
 
     # Check for sensitive files
     results["sensitive_files"] = check_sensitive_files(all_files)
