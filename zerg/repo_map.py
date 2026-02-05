@@ -12,6 +12,8 @@ import json
 import logging
 import os
 import tempfile
+import threading
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -331,21 +333,89 @@ def _convert_js_symbol(js_sym: JSSymbol, module_name: str) -> Symbol:
     )
 
 
+# ---------------------------------------------------------------------------
+# TTL-based caching for build_map() — module-level cache
+# ---------------------------------------------------------------------------
+_cached_graph: SymbolGraph | None = None
+_cache_time: float | None = None
+_cache_root: Path | None = None
+_cache_languages: list[str] | None = None
+_cache_lock = threading.Lock()
+_CACHE_TTL_SECONDS = 30
+
+
 def build_map(
     root: str | Path,
     languages: list[str] | None = None,
 ) -> SymbolGraph:
-    """Build a symbol graph for the repository.
+    """Build a symbol graph with TTL-based caching.
+
+    Cached result is returned if:
+    - Same root and languages
+    - Within TTL (30 seconds)
 
     Args:
         root: Repository root path.
         languages: Languages to include. Default: ["python", "javascript", "typescript"].
 
     Returns:
-        SymbolGraph with extracted symbols and edges.
+        SymbolGraph with extracted symbols and edges (cached if valid).
     """
+    global _cached_graph, _cache_time, _cache_root, _cache_languages
+
     root = Path(root).resolve()
     languages = languages or ["python", "javascript", "typescript"]
+
+    with _cache_lock:
+        # Check cache validity
+        if (
+            _cached_graph is not None
+            and _cache_root == root
+            and _cache_languages == languages
+            and _cache_time is not None
+            and (time.time() - _cache_time) < _CACHE_TTL_SECONDS
+        ):
+            logger.debug(
+                "Cache hit for RepoMap (TTL: %.1fs remaining)",
+                _CACHE_TTL_SECONDS - (time.time() - _cache_time),
+            )
+            return _cached_graph
+
+        # Cache miss - build fresh
+        logger.debug("Cache miss for RepoMap, building from %s", root)
+        graph = _build_map_impl(root, languages)
+
+        # Update cache
+        _cached_graph = graph
+        _cache_time = time.time()
+        _cache_root = root
+        _cache_languages = languages
+
+        return graph
+
+
+def invalidate_cache() -> None:
+    """Invalidate the cached SymbolGraph."""
+    global _cached_graph, _cache_time, _cache_root, _cache_languages
+
+    with _cache_lock:
+        _cached_graph = None
+        _cache_time = None
+        _cache_root = None
+        _cache_languages = None
+        logger.debug("Invalidating cache for RepoMap")
+
+
+def _build_map_impl(root: Path, languages: list[str]) -> SymbolGraph:
+    """Internal implementation of build_map (without caching).
+
+    Args:
+        root: Repository root path (already resolved).
+        languages: Languages to include.
+
+    Returns:
+        SymbolGraph with extracted symbols and edges.
+    """
     graph = SymbolGraph()
 
     # Collect files by extension
@@ -418,18 +488,30 @@ def _md5_file(filepath: Path) -> str:
 
 
 def _collect_files(root: Path, languages: list[str]) -> list[Path]:
-    """Collect source files matching *languages* under *root*."""
+    """Collect source files matching *languages* under *root*.
+
+    Uses single-pass directory traversal for performance.
+    """
     exts: set[str] = set()
     for lang in languages:
         exts.update(_LANG_EXTENSIONS.get(lang, []))
 
+    # Single traversal, filter in memory
     result: list[Path] = []
-    for ext in exts:
-        for fp in root.rglob(f"*{ext}"):
-            parts = fp.relative_to(root).parts
-            if any(p.startswith(".") or p in _SKIP_DIRS for p in parts):
-                continue
-            result.append(fp)
+    for fp in root.rglob("*"):
+        if not fp.is_file():
+            continue
+
+        # Check extension
+        if fp.suffix not in exts:
+            continue
+
+        # Check skip directories
+        parts = fp.relative_to(root).parts
+        if any(p.startswith(".") or p in _SKIP_DIRS for p in parts):
+            continue
+
+        result.append(fp)
     return result
 
 
@@ -550,6 +632,10 @@ class IncrementalIndex:
         # Drop entries for files that no longer exist
         self._data = updated
         self._save(updated)
+
+        # Invalidate build_map cache before rebuilding — incremental update
+        # explicitly requests fresh data, so bypass TTL cache
+        invalidate_cache()
 
         # Build a full SymbolGraph from the current file set
         return build_map(root, languages)
