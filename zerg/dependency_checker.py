@@ -45,7 +45,7 @@ class DependencyChecker:
             True if all dependencies have status COMPLETE
         """
         deps = self.get_incomplete_dependencies(task_id)
-        return len(deps) == 0
+        return not deps
 
     def get_incomplete_dependencies(self, task_id: str) -> list[str]:
         """Get list of incomplete dependencies for a task.
