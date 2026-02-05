@@ -1,0 +1,284 @@
+{
+  "feature": "security-hardening",
+  "version": "2.0",
+  "generated": "2026-02-04T23:00:00Z",
+  "total_tasks": 10,
+  "estimated_duration_minutes": 135,
+  "max_parallelization": 4,
+
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "Remove dangerous command prefixes from allowlist",
+      "description": "Remove 'python -c', 'python3 -c', and 'npx' from ALLOWED_COMMAND_PREFIXES in command_executor.py. These prefixes enable arbitrary code execution and bypass the safety intent of the allowlist.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": [],
+        "modify": ["zerg/command_executor.py"],
+        "read": []
+      },
+      "verification": {
+        "command": "grep -E \"(python -c|python3 -c|npx)\" zerg/command_executor.py | grep -v \"#\" | wc -l | xargs test 0 -eq",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 10,
+      "skills_required": ["python"],
+      "consumers": ["TASK-003", "TASK-004", "TASK-005"],
+      "integration_test": "tests/integration/test_diagnostics_secure_execution.py",
+      "context": "## Security Rules (Python)\n- Use parameterized queries (CWE-89)\n- Safe subprocess (CWE-78): Use shell=False, argument lists\n\n## Spec Context\nFR-2.1: Remove dangerous prefixes from default allowlist. Remove: `python -c`, `python3 -c`, `npx`. These enable arbitrary code execution and bypass the safety intent.\n\n## Current Code\nALLOWED_COMMAND_PREFIXES contains:\n- \"npx\": CommandCategory.SYSTEM\n- \"python -c\": CommandCategory.SYSTEM\n- \"python3 -c\": CommandCategory.SYSTEM\n\nThese must be removed entirely from the dict."
+    },
+    {
+      "id": "TASK-002",
+      "title": "Add deprecation warning for trust_commands flag",
+      "description": "Add a logger.warning() call in CommandExecutor.__init__ when trust_commands=True is passed. The warning should indicate the flag is deprecated and will be removed in a future version, with guidance to use custom_allowlist instead.",
+      "phase": "foundation",
+      "level": 1,
+      "dependencies": [],
+      "files": {
+        "create": [],
+        "modify": ["zerg/command_executor.py"],
+        "read": []
+      },
+      "verification": {
+        "command": "grep -n \"trust_commands.*deprecated\" zerg/command_executor.py | wc -l | xargs test 0 -lt",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 5,
+      "skills_required": ["python"],
+      "consumers": ["TASK-004"],
+      "integration_test": "tests/integration/test_diagnostics_secure_execution.py",
+      "context": "## Security Rules (Python)\n- Log security events comprehensively (OWASP A09:2025)\n\n## Spec Context\nFR-2.3: Deprecate trust_commands flag. Log warning when trust_commands=True is used. Document migration path for existing callers. Add TODO for eventual removal.\n\n## Implementation\nIn CommandExecutor.__init__, after trust_commands is assigned:\nif trust_commands:\n    logger.warning(\n        \"trust_commands=True is deprecated and will be removed in a future version. \"\n        \"Add specific command patterns to custom_allowlist instead.\"\n    )"
+    },
+    {
+      "id": "TASK-003",
+      "title": "Refactor HypothesisTestRunner to use CommandExecutor",
+      "description": "Replace subprocess.run(shell=True) in HypothesisTestRunner.test() with CommandExecutor.execute(). Remove the local SAFE_PREFIXES list (redundant with CommandExecutor). Add executor as instance attribute initialized in __init__. Handle CommandValidationError.",
+      "phase": "core",
+      "level": 2,
+      "dependencies": ["TASK-001"],
+      "files": {
+        "create": [],
+        "modify": ["zerg/diagnostics/hypothesis_engine.py"],
+        "read": ["zerg/command_executor.py"]
+      },
+      "verification": {
+        "command": "grep -n \"shell=True\" zerg/diagnostics/hypothesis_engine.py | wc -l | xargs test 0 -eq && grep -n \"CommandExecutor\\|get_executor\" zerg/diagnostics/hypothesis_engine.py | wc -l | xargs test 0 -lt",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 20,
+      "skills_required": ["python"],
+      "consumers": ["TASK-007"],
+      "integration_test": "tests/integration/test_diagnostics_secure_execution.py",
+      "context": "## Security Rules (Python)\n- Safe subprocess (CWE-78): Use shell=False with argument lists\n- Avoid command injection by using CommandExecutor\n\n## Spec Context\nFR-1.1: Refactor HypothesisTestRunner.test() (hypothesis_engine.py:194-200)\n- Replace subprocess.run(shell=True) with CommandExecutor.execute()\n- Remove SAFE_PREFIXES list (CommandExecutor handles validation)\n- Preserve timeout and output capture behavior"
+    },
+    {
+      "id": "TASK-004",
+      "title": "Refactor StepExecutor to use CommandExecutor",
+      "description": "Replace subprocess.run(shell=True) in StepExecutor._execute_step() with CommandExecutor.execute(). Initialize executor in __init__ with trust_commands=True for task-graph verification commands. Handle CommandValidationError.",
+      "phase": "core",
+      "level": 2,
+      "dependencies": ["TASK-001", "TASK-002"],
+      "files": {
+        "create": [],
+        "modify": ["zerg/step_executor.py"],
+        "read": ["zerg/command_executor.py"]
+      },
+      "verification": {
+        "command": "grep -n \"shell=True\" zerg/step_executor.py | wc -l | xargs test 0 -eq && grep -n \"CommandExecutor\" zerg/step_executor.py | wc -l | xargs test 0 -lt",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 20,
+      "skills_required": ["python"],
+      "consumers": ["TASK-007"],
+      "integration_test": "tests/integration/test_diagnostics_secure_execution.py",
+      "context": "## Security Rules (Python)\n- Safe subprocess (CWE-78): Use shell=False with argument lists\n- trust_commands=True needed for task-graph verification commands\n\n## Spec Context\nFR-1.2: Refactor StepExecutor._execute_step() (step_executor.py:272-278)\n- Use CommandExecutor for all command execution\n- Initialize executor with trust_commands=True for task-graph.json verification commands\n- Add validation before execution"
+    },
+    {
+      "id": "TASK-005",
+      "title": "Refactor RecoveryPlanner to use CommandExecutor with shlex.quote",
+      "description": "Replace subprocess.run(shell=True) in RecoveryPlanner.execute_step() with CommandExecutor.execute(). Apply shlex.quote() to template variables in _get_steps() before interpolation. Handle CommandValidationError.",
+      "phase": "core",
+      "level": 2,
+      "dependencies": ["TASK-001"],
+      "files": {
+        "create": [],
+        "modify": ["zerg/diagnostics/recovery.py"],
+        "read": ["zerg/command_executor.py"]
+      },
+      "verification": {
+        "command": "grep -n \"shell=True\" zerg/diagnostics/recovery.py | wc -l | xargs test 0 -eq && grep -n \"shlex.quote\" zerg/diagnostics/recovery.py | wc -l | xargs test 0 -lt && grep -n \"CommandExecutor\\|get_executor\" zerg/diagnostics/recovery.py | wc -l | xargs test 0 -lt",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 15,
+      "skills_required": ["python"],
+      "consumers": ["TASK-007"],
+      "integration_test": "tests/integration/test_diagnostics_secure_execution.py",
+      "context": "## Security Rules (Python)\n- Safe subprocess (CWE-78): Use shell=False with argument lists\n- Sanitize inputs with shlex.quote before command interpolation\n\n## Spec Context\nFR-1.3: Refactor RecoveryPlanner.execute_step() (recovery.py:367-374)\n- Replace subprocess.run(shell=True) with CommandExecutor.execute()\n- Apply shlex.quote() to template variables before interpolation\n- Preserve timeout (SUBPROCESS_TIMEOUT=10) behavior"
+    },
+    {
+      "id": "TASK-006",
+      "title": "Prevent path traversal in run_security_scan",
+      "description": "In run_security_scan(): (1) Add explicit followlinks=False to os.walk(), (2) Validate each resolved path stays within scan_path using is_relative_to(), (3) Add symlink_violations to results dict, (4) Handle OSError/ValueError during path resolution.",
+      "phase": "core",
+      "level": 2,
+      "dependencies": [],
+      "files": {
+        "create": [],
+        "modify": ["zerg/security.py"],
+        "read": []
+      },
+      "verification": {
+        "command": "grep -n \"followlinks=False\" zerg/security.py | wc -l | xargs test 0 -lt && grep -n \"is_relative_to\" zerg/security.py | wc -l | xargs test 0 -lt && grep -n \"symlink_violations\" zerg/security.py | wc -l | xargs test 0 -lt",
+        "timeout_seconds": 30
+      },
+      "estimate_minutes": 15,
+      "skills_required": ["python"],
+      "consumers": ["TASK-008"],
+      "integration_test": "tests/integration/test_diagnostics_secure_execution.py",
+      "context": "## Security Rules (Python)\n- Prevent Path Traversal (CWE-22, OWASP A01:2025)\n- Validate resolved paths stay within allowed directory\n- Use is_relative_to() for boundary checking\n\n## Spec Context\nFR-3.1: Disable symlink following in os.walk() - use followlinks=False explicitly\nFR-3.2: Validate resolved paths stay within scan boundary using is_relative_to(scan_path)\nFR-3.3: Handle symlink resolution errors gracefully - catch OSError, ValueError"
+    },
+    {
+      "id": "TASK-007",
+      "title": "Create unit tests for CommandExecutor hardening",
+      "description": "Create test_command_executor_hardening.py with tests for: (1) python -c rejected by default, (2) python3 -c rejected by default, (3) npx rejected by default, (4) trust_commands deprecation warning logged, (5) existing allowed commands still work.",
+      "phase": "testing",
+      "level": 3,
+      "dependencies": ["TASK-003", "TASK-004", "TASK-005"],
+      "files": {
+        "create": ["tests/unit/test_command_executor_hardening.py"],
+        "modify": [],
+        "read": ["zerg/command_executor.py"]
+      },
+      "verification": {
+        "command": "pytest tests/unit/test_command_executor_hardening.py -v",
+        "timeout_seconds": 120
+      },
+      "estimate_minutes": 20,
+      "skills_required": ["python", "testing"],
+      "consumers": ["TASK-009"],
+      "integration_test": null,
+      "context": "## Testing Patterns\n- Use pytest fixtures for executor setup\n- Mock logger to verify deprecation warning\n- Test both positive and negative cases\n\n## Test Cases\n1. test_python_c_rejected - validate_command returns False for python -c\n2. test_python3_c_rejected - validate_command returns False for python3 -c\n3. test_npx_rejected - validate_command returns False for npx\n4. test_trust_commands_deprecation_warning - logger.warning called with 'deprecated'\n5. test_allowed_commands_still_work - pytest, git status return True"
+    },
+    {
+      "id": "TASK-008",
+      "title": "Create unit tests for path traversal prevention",
+      "description": "Create test_security_path_traversal.py with tests for: (1) os.walk uses followlinks=False, (2) symlink outside boundary detected, (3) symlink outside boundary skipped with warning, (4) normal files within boundary scanned, (5) OSError during resolution handled.",
+      "phase": "testing",
+      "level": 3,
+      "dependencies": ["TASK-006"],
+      "files": {
+        "create": ["tests/unit/test_security_path_traversal.py"],
+        "modify": [],
+        "read": ["zerg/security.py"]
+      },
+      "verification": {
+        "command": "pytest tests/unit/test_security_path_traversal.py -v",
+        "timeout_seconds": 120
+      },
+      "estimate_minutes": 20,
+      "skills_required": ["python", "testing"],
+      "consumers": ["TASK-009"],
+      "integration_test": null,
+      "context": "## Testing Patterns\n- Use tmp_path fixture for isolated test directories\n- Create symlinks programmatically for testing\n- Mock logger to verify warning calls\n\n## Test Cases\n1. test_followlinks_false_explicit - verify os.walk called with followlinks=False\n2. test_symlink_outside_boundary_detected - symlink_violations populated\n3. test_symlink_outside_boundary_logged - logger.warning called\n4. test_normal_files_within_boundary_scanned - secrets_found works\n5. test_oserror_handled_gracefully - no exception, warning logged"
+    },
+    {
+      "id": "TASK-009",
+      "title": "Create integration tests for secure diagnostics execution",
+      "description": "Create test_diagnostics_secure_execution.py with tests for: (1) HypothesisTestRunner uses CommandExecutor, (2) StepExecutor uses CommandExecutor, (3) RecoveryPlanner uses CommandExecutor, (4) end-to-end hypothesis test with safe command, (5) recovery plan execution with template substitution.",
+      "phase": "integration",
+      "level": 4,
+      "dependencies": ["TASK-007", "TASK-008"],
+      "files": {
+        "create": ["tests/integration/test_diagnostics_secure_execution.py"],
+        "modify": [],
+        "read": [
+          "zerg/diagnostics/hypothesis_engine.py",
+          "zerg/step_executor.py",
+          "zerg/diagnostics/recovery.py"
+        ]
+      },
+      "verification": {
+        "command": "pytest tests/integration/test_diagnostics_secure_execution.py -v",
+        "timeout_seconds": 180
+      },
+      "estimate_minutes": 25,
+      "skills_required": ["python", "testing"],
+      "consumers": [],
+      "integration_test": null,
+      "context": "## Testing Patterns\n- Use real CommandExecutor (not mocked) to verify integration\n- Create minimal fixtures for hypothesis, step, recovery scenarios\n- Verify audit logging occurs\n\n## Test Cases\n1. test_hypothesis_test_runner_uses_executor - hasattr and isinstance checks\n2. test_step_executor_uses_executor - hasattr and isinstance checks\n3. test_recovery_planner_uses_executor - hasattr and isinstance checks\n4. test_hypothesis_test_e2e_safe_command - echo test returns PASSED\n5. test_recovery_plan_e2e_template_substitution - shlex.quote applied"
+    },
+    {
+      "id": "TASK-010",
+      "title": "Run verification commands and update acceptance criteria",
+      "description": "Run all acceptance criteria verification commands from requirements.md. Ensure AC-1 through AC-7 pass. Run bandit security linter. Update design.md status to APPROVED if all pass.",
+      "phase": "quality",
+      "level": 5,
+      "dependencies": ["TASK-009"],
+      "files": {
+        "create": [],
+        "modify": [".gsd/specs/security-hardening/design.md"],
+        "read": [".gsd/specs/security-hardening/requirements.md"]
+      },
+      "verification": {
+        "command": "pytest tests/ -v && bandit -r zerg/ -ll",
+        "timeout_seconds": 300
+      },
+      "estimate_minutes": 15,
+      "skills_required": ["python"],
+      "consumers": [],
+      "integration_test": null,
+      "context": "## Acceptance Criteria\nAC-1: grep -r shell=True returns only command_executor.py\nAC-2: CommandExecutor imported in all three modules\nAC-3: python -c and npx removed from ALLOWED_COMMAND_PREFIXES\nAC-4: os.walk with followlinks=False in security.py\nAC-5: All existing tests pass\nAC-6: New tests added\nAC-7: bandit scan passes"
+    }
+  ],
+
+  "levels": {
+    "1": {
+      "name": "foundation",
+      "tasks": ["TASK-001", "TASK-002"],
+      "parallel": false,
+      "estimated_minutes": 15,
+      "note": "TASK-001 and TASK-002 both modify command_executor.py, must be sequential"
+    },
+    "2": {
+      "name": "core",
+      "tasks": ["TASK-003", "TASK-004", "TASK-005", "TASK-006"],
+      "parallel": true,
+      "estimated_minutes": 45,
+      "depends_on_levels": [1]
+    },
+    "3": {
+      "name": "testing",
+      "tasks": ["TASK-007", "TASK-008"],
+      "parallel": true,
+      "estimated_minutes": 40,
+      "depends_on_levels": [2]
+    },
+    "4": {
+      "name": "integration",
+      "tasks": ["TASK-009"],
+      "parallel": false,
+      "estimated_minutes": 25,
+      "depends_on_levels": [3]
+    },
+    "5": {
+      "name": "quality",
+      "tasks": ["TASK-010"],
+      "parallel": false,
+      "estimated_minutes": 15,
+      "depends_on_levels": [4]
+    }
+  },
+
+  "conflict_matrix": {
+    "description": "Tasks that cannot run in parallel due to shared files",
+    "conflicts": [
+      {
+        "tasks": ["TASK-001", "TASK-002"],
+        "reason": "Both modify zerg/command_executor.py",
+        "resolution": "Execute sequentially within Level 1"
+      }
+    ]
+  }
+}

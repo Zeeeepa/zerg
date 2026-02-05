@@ -7,12 +7,13 @@ requirements. Steps are executed in strict order with heartbeat updates.
 
 from __future__ import annotations
 
-import subprocess
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
+from zerg.command_executor import CommandExecutor, CommandValidationError
 from zerg.logging import get_logger
 
 if TYPE_CHECKING:
@@ -144,6 +145,11 @@ class StepExecutor:
         self._working_dir = working_dir
         self._default_timeout = default_timeout
         self._step_states: list[str] = []
+        self._executor = CommandExecutor(
+            working_dir=Path(working_dir) if working_dir else None,
+            timeout=default_timeout,
+            trust_commands=True,  # Task-graph commands are trusted
+        )
 
     def execute(self, steps: list[Step] | None) -> TaskResult:
         """Execute all steps in a task.
@@ -268,18 +274,14 @@ class StepExecutor:
             )
 
         try:
-            # Execute the command
-            result = subprocess.run(
+            # Execute the command using CommandExecutor
+            result = self._executor.execute(
                 command,
-                shell=True,
-                capture_output=True,
-                text=True,
                 timeout=self._default_timeout,
-                cwd=self._working_dir,
             )
 
             duration_ms = int((time.monotonic() - start_time) * 1000)
-            exit_code = result.returncode
+            exit_code = result.exit_code
 
             # Verify exit code based on verify mode
             verification_passed = self._verify_exit_code(exit_code, verify_mode)
@@ -307,14 +309,14 @@ class StepExecutor:
                     error_message=error_msg,
                 )
 
-        except subprocess.TimeoutExpired:
+        except CommandValidationError as e:
             duration_ms = int((time.monotonic() - start_time) * 1000)
             return StepResult(
                 step_number=step_number,
                 action=action,
                 state=StepState.FAILED,
                 duration_ms=duration_ms,
-                error_message=f"Command timed out after {self._default_timeout}s",
+                error_message=f"Command validation failed: {e}",
             )
 
         except Exception as e:
