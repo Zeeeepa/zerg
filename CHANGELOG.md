@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-02-07
+
 ### Added
 
 - `--tone` flag for `/zerg:document` with `educational` (default), `reference`, and `tutorial` tones for documentation style control
@@ -206,7 +208,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Incremental repo map indexing with MD5-based staleness detection and selective re-parse (#30)
 - Token usage metrics subsystem: TokenCounter (API + heuristic), TokenTracker (per-worker), TokenAggregator (cumulative) (#24)
 - REPOSITORY MAP and TOKEN USAGE sections in `/zerg:status` dashboard
-- Optional `anthropic` dependency for exact token counting (`pip install zerg[metrics]`)
+- Optional `anthropic` dependency for exact token counting (`pip install zerg-ai[metrics]`)
 - `TokenMetricsConfig` with configurable api_counting (off by default), caching, and heuristic fallback
 - StatusFormatter module for ASCII table formatting across all dashboard sections
 - Automated PyPI release workflow with trusted publishing (OIDC), TestPyPI pre-release support, and SLSA provenance attestation (#23)
@@ -347,3 +349,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reject unknown launcher modes instead of silent fallback to subprocess
 - Show human-friendly launcher mode and worker count in rush output
 - Audit skipped tests and convert unconditional skips to conditional skipif decorators
+
+[Unreleased]: https://github.com/rocklambros/zerg/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/rocklambros/zerg/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/rocklambros/zerg/releases/tag/v0.1.0
