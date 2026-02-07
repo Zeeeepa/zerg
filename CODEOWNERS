@@ -1,0 +1,11 @@
+# Default owner for all files
+* @rocklambros
+
+# Core orchestrator
+/zerg/ @rocklambros
+
+# CI/CD
+/.github/ @rocklambros
+
+# Documentation
+/docs/ @rocklambros
