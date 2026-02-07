@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub environments (`pypi`, `testpypi`) for trusted OIDC publishing (#181)
 - 5 required CI status checks on `main` branch protection: `quality`, `smoke`, `test (1)`, `test (2)`, `audit` (#179)
 - Pre-release tag support in `release.yml` version validation (#183)
+- CodeQL security scanning workflow for automated vulnerability detection on PRs and weekly schedule (#189)
+- mypy type checking enforced in CI quality job (#189)
+- Python 3.13 added to CI test matrix alongside 3.12 (#189)
+- CODEOWNERS file with @rocklambros as default reviewer (#189)
+- MkDocs documentation site with Material theme and GitHub Pages deployment (#190)
+- `docs` optional dependency group for mkdocs and mkdocs-material (#190)
+- Python 3.13 classifier in pyproject.toml (#189)
+- Coverage badge and GitHub Discussions link in README (#189, #190)
 
 ### Changed
 
