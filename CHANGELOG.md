@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-02-11
+
 ### Added
 
 - `ZERG_FEATURE` environment variable for terminal-scoped feature isolation in multi-epic workflows
@@ -406,6 +408,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Show human-friendly launcher mode and worker count in rush output
 - Audit skipped tests and convert unconditional skips to conditional skipif decorators
 
-[Unreleased]: https://github.com/rocklambros/zerg/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/rocklambros/zerg/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/rocklambros/zerg/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/rocklambros/zerg/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rocklambros/zerg/releases/tag/v0.1.0
