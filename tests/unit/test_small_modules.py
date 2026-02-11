@@ -153,6 +153,16 @@ class TestJsonUtilsStdlib:
         assert set(mod.__all__) == {"HAS_ORJSON", "dump", "dumps", "load", "loads"}
 
 
+_has_orjson = False
+try:
+    import orjson as _orjson  # noqa: F401
+
+    _has_orjson = True
+except ImportError:
+    pass
+
+
+@pytest.mark.skipif(not _has_orjson, reason="orjson not installed")
 class TestJsonUtilsOrjson:
     """Test json_utils when orjson IS available (the try-branch)."""
 
