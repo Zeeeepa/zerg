@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Level-aware task claiming — workers can no longer claim tasks above the current orchestrator level
 - All 15 command pre-flights now read `ZERG_FEATURE` env var before `.gsd/.current-feature` file
+- TOCTOU race in advisory lockfile acquisition — now uses atomic file creation via `os.open` with `O_CREAT|O_EXCL`
+- Missing ownership check in lockfile release — now validates PID before deletion
+- Unprotected file reads in `detect_feature()` and lockfile functions — now resilient to OS/encoding errors
+- Path traversal vulnerability in feature name handling — now validates against directory escape
+- Unbounded PID/timestamp parsing in lockfile content — now bounds-checked with safe integer limits
 
 ### Changed
 
