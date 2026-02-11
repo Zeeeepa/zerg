@@ -121,6 +121,70 @@ class TestAcquireFeatureLock:
 
         assert result is False
 
+    # --- F1: Atomic race simulation ---
+
+    def test_atomic_acquire_race_simulation(self, tmp_path: Path) -> None:
+        """F1: When os.open raises FileExistsError (another process won the race),
+        acquire returns False without corrupting state."""
+        gsd_dir = str(tmp_path)
+        feature = "race-feature"
+        lock_dir = tmp_path / "specs" / feature
+        lock_dir.mkdir(parents=True)
+
+        with patch("zerg.commands._utils.os.open", side_effect=FileExistsError):
+            result = acquire_feature_lock(feature, gsd_dir=gsd_dir)
+
+        assert result is False
+
+    # --- F3: Read error resilience ---
+
+    def test_acquire_handles_read_error_on_existing_lock(self, tmp_path: Path) -> None:
+        """F3: When read_text raises OSError on existing lock, acquire removes
+        the unreadable lock and creates a new one."""
+        gsd_dir = str(tmp_path)
+        feature = "read-err-feature"
+        lock_dir = tmp_path / "specs" / feature
+        lock_dir.mkdir(parents=True)
+        lock_path = lock_dir / ".lock"
+        lock_path.write_text("placeholder")
+
+        original_read_text = Path.read_text
+
+        def failing_read_text(self_path, *args, **kwargs):
+            if self_path.name == ".lock":
+                raise OSError("Permission denied")
+            return original_read_text(self_path, *args, **kwargs)
+
+        with patch.object(Path, "read_text", failing_read_text):
+            result = acquire_feature_lock(feature, gsd_dir=gsd_dir)
+
+        assert result is True
+        content = lock_path.read_text().strip()
+        pid_str, _ = content.split(":", 1)
+        assert int(pid_str) == os.getpid()
+
+    # --- F4: Path traversal rejection ---
+
+    def test_acquire_rejects_path_traversal(self, tmp_path: Path) -> None:
+        """F4: Feature name with '..' raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid feature name"):
+            acquire_feature_lock("../etc", gsd_dir=str(tmp_path))
+
+    def test_acquire_rejects_slash_in_name(self, tmp_path: Path) -> None:
+        """F4: Feature name with '/' raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid feature name"):
+            acquire_feature_lock("foo/bar", gsd_dir=str(tmp_path))
+
+    def test_acquire_rejects_backslash_in_name(self, tmp_path: Path) -> None:
+        """F4: Feature name with backslash raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid feature name"):
+            acquire_feature_lock("foo\\bar", gsd_dir=str(tmp_path))
+
+    def test_acquire_rejects_empty_name(self, tmp_path: Path) -> None:
+        """F4: Empty feature name raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid feature name"):
+            acquire_feature_lock("", gsd_dir=str(tmp_path))
+
 
 class TestReleaseFeatureLock:
     """Tests for release_feature_lock()."""
@@ -156,6 +220,63 @@ class TestReleaseFeatureLock:
 
         # Should not raise
         release_feature_lock(feature, gsd_dir=gsd_dir)
+
+    # --- F2: Ownership-validated release ---
+
+    def test_release_only_deletes_owned_lock(self, tmp_path: Path) -> None:
+        """F2: Lock owned by a different PID is NOT deleted on release."""
+        gsd_dir = str(tmp_path)
+        feature = "other-pid"
+        lock_dir = tmp_path / "specs" / feature
+        lock_dir.mkdir(parents=True)
+        lock_path = lock_dir / ".lock"
+
+        # Write lock with a PID that is not ours
+        other_pid = os.getpid() + 1
+        lock_path.write_text(f"{other_pid}:{time.time()}")
+
+        release_feature_lock(feature, gsd_dir=gsd_dir)
+
+        # Lock should still exist because it belongs to another process
+        assert lock_path.exists()
+        content = lock_path.read_text()
+        assert content.startswith(f"{other_pid}:")
+
+    def test_release_deletes_own_lock(self, tmp_path: Path) -> None:
+        """F2: Lock owned by the current PID IS deleted on release."""
+        gsd_dir = str(tmp_path)
+        feature = "own-pid"
+        lock_dir = tmp_path / "specs" / feature
+        lock_dir.mkdir(parents=True)
+        lock_path = lock_dir / ".lock"
+
+        lock_path.write_text(f"{os.getpid()}:{time.time()}")
+
+        release_feature_lock(feature, gsd_dir=gsd_dir)
+
+        assert not lock_path.exists()
+
+    def test_release_deletes_corrupt_lock(self, tmp_path: Path) -> None:
+        """F2: Corrupt (unparseable) lock is deleted as fallback cleanup."""
+        gsd_dir = str(tmp_path)
+        feature = "corrupt-release"
+        lock_dir = tmp_path / "specs" / feature
+        lock_dir.mkdir(parents=True)
+        lock_path = lock_dir / ".lock"
+
+        lock_path.write_text("not-a-valid-lock")
+
+        release_feature_lock(feature, gsd_dir=gsd_dir)
+
+        # Corrupt locks are deleted as cleanup fallback
+        assert not lock_path.exists()
+
+    # --- F4: Path traversal rejection ---
+
+    def test_release_rejects_path_traversal(self, tmp_path: Path) -> None:
+        """F4: Feature name with '..' raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid feature name"):
+            release_feature_lock("../etc", gsd_dir=str(tmp_path))
 
 
 class TestCheckFeatureLock:
@@ -251,4 +372,94 @@ class TestCheckFeatureLock:
         # for non-numeric strings, but the try/except catches ValueError
         # Note: the int() call happens AFTER the stale check, so the function
         # will attempt int("not-a-pid") which raises ValueError -> returns None
+        assert result is None
+
+    # --- F3: Read error resilience ---
+
+    def test_check_handles_read_error(self, tmp_path: Path) -> None:
+        """F3: When read_text raises OSError, check returns None gracefully."""
+        gsd_dir = str(tmp_path)
+        feature = "read-err-check"
+        lock_dir = tmp_path / "specs" / feature
+        lock_dir.mkdir(parents=True)
+        lock_path = lock_dir / ".lock"
+        lock_path.write_text("placeholder")
+
+        original_read_text = Path.read_text
+
+        def failing_read_text(self_path, *args, **kwargs):
+            if self_path.name == ".lock":
+                raise PermissionError("Permission denied")
+            return original_read_text(self_path, *args, **kwargs)
+
+        with patch.object(Path, "read_text", failing_read_text):
+            result = check_feature_lock(feature, gsd_dir=gsd_dir)
+
+        assert result is None
+
+    # --- F4: Path traversal rejection ---
+
+    def test_check_rejects_path_traversal(self, tmp_path: Path) -> None:
+        """F4: Feature name with '..' raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid feature name"):
+            check_feature_lock("../etc", gsd_dir=str(tmp_path))
+
+    # --- F5: PID/timestamp bounds checking ---
+
+    def test_pid_zero_treated_as_corrupt(self, tmp_path: Path) -> None:
+        """F5: PID of 0 is out of bounds and treated as corrupt (returns None)."""
+        gsd_dir = str(tmp_path)
+        feature = "pid-zero"
+        lock_dir = tmp_path / "specs" / feature
+        lock_dir.mkdir(parents=True)
+        lock_path = lock_dir / ".lock"
+
+        lock_path.write_text(f"0:{time.time()}")
+
+        result = check_feature_lock(feature, gsd_dir=gsd_dir)
+
+        assert result is None
+
+    def test_negative_pid_treated_as_corrupt(self, tmp_path: Path) -> None:
+        """F5: Negative PID is out of bounds and treated as corrupt."""
+        gsd_dir = str(tmp_path)
+        feature = "pid-negative"
+        lock_dir = tmp_path / "specs" / feature
+        lock_dir.mkdir(parents=True)
+        lock_path = lock_dir / ".lock"
+
+        lock_path.write_text(f"-1:{time.time()}")
+
+        result = check_feature_lock(feature, gsd_dir=gsd_dir)
+
+        assert result is None
+
+    def test_pid_over_max_treated_as_corrupt(self, tmp_path: Path) -> None:
+        """F5: PID > 4194304 (MAX_PID) is out of bounds and treated as corrupt."""
+        gsd_dir = str(tmp_path)
+        feature = "pid-over-max"
+        lock_dir = tmp_path / "specs" / feature
+        lock_dir.mkdir(parents=True)
+        lock_path = lock_dir / ".lock"
+
+        lock_path.write_text(f"4194305:{time.time()}")
+
+        result = check_feature_lock(feature, gsd_dir=gsd_dir)
+
+        assert result is None
+
+    def test_future_timestamp_treated_as_corrupt(self, tmp_path: Path) -> None:
+        """F5: Timestamp far in the future (> now + 1 day) is treated as corrupt."""
+        gsd_dir = str(tmp_path)
+        feature = "ts-future"
+        lock_dir = tmp_path / "specs" / feature
+        lock_dir.mkdir(parents=True)
+        lock_path = lock_dir / ".lock"
+
+        # Timestamp 2 days in the future exceeds the +86400 bound
+        future_ts = time.time() + 172800
+        lock_path.write_text(f"1000:{future_ts}")
+
+        result = check_feature_lock(feature, gsd_dir=gsd_dir)
+
         assert result is None
