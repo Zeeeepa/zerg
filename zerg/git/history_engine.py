@@ -11,7 +11,7 @@ import os
 import re
 import tempfile
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from zerg.exceptions import GitError
 from zerg.git.commit_engine import COMMIT_TYPE_PATTERNS
@@ -369,7 +369,7 @@ class HistoryAnalyzer:
 class RewritePlanner:
     """Creates a rewrite plan without executing."""
 
-    def plan_squash(self, groups: list[list[CommitInfo]]) -> list[dict]:
+    def plan_squash(self, groups: list[list[CommitInfo]]) -> list[dict[str, Any]]:
         """Plan squash operations for commit groups.
 
         Args:
@@ -378,7 +378,7 @@ class RewritePlanner:
         Returns:
             List of squash plan dicts with action, commits, message.
         """
-        plans: list[dict] = []
+        plans: list[dict[str, Any]] = []
 
         for group in groups:
             if not group:
@@ -415,7 +415,7 @@ class RewritePlanner:
 
         return ordered
 
-    def plan_rewrite_messages(self, commits: list[CommitInfo]) -> list[dict]:
+    def plan_rewrite_messages(self, commits: list[CommitInfo]) -> list[dict[str, Any]]:
         """Plan message rewrites for non-conventional commits.
 
         Args:
@@ -424,7 +424,7 @@ class RewritePlanner:
         Returns:
             List of rewrite plan dicts with sha, old, new.
         """
-        rewrites: list[dict] = []
+        rewrites: list[dict[str, Any]] = []
 
         for c in commits:
             if _CONVENTIONAL_RE.match(c.message):
@@ -513,7 +513,7 @@ class SafeRewriter:
         logger.info("Created cleaned branch: %s", new_name)
         return new_name
 
-    def execute_squash(self, plan: list[dict], base: str = "main") -> bool:
+    def execute_squash(self, plan: list[dict[str, Any]], base: str = "main") -> bool:
         """Execute squash operations using GIT_SEQUENCE_EDITOR.
 
         Writes a script that modifies the rebase todo list, then runs
@@ -702,7 +702,7 @@ class SafeRewriter:
             except (OSError, UnboundLocalError):
                 pass
 
-    def preview(self, plan: list[dict] | dict) -> str:
+    def preview(self, plan: list[dict[str, Any]] | dict[str, Any]) -> str:
         """Return a human-readable preview of what would change.
 
         Args:

@@ -354,7 +354,7 @@ class ConfigValidator:
             return [f"Config file is empty: {config_path}"]
 
         try:
-            import yaml  # type: ignore[import-untyped]  # noqa: PLC0415
+            import yaml  # noqa: PLC0415
 
             data = yaml.safe_load(content)
             if not isinstance(data, dict):

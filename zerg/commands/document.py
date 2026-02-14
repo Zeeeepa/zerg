@@ -106,7 +106,7 @@ def document(
         _mermaid = MermaidGenerator()
 
         # 5. Render documentation
-        renderer = DocRenderer()
+        renderer = DocRenderer(project_root=Path("."))
         content = renderer.render(target_path)
 
         # 6. Cross-reference (basic - no glossary in single-file mode)

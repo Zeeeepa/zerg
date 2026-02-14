@@ -77,7 +77,7 @@ def extract_js_symbols(source: str, filepath: str = "") -> list[JSSymbol]:
     symbols: list[JSSymbol] = []
     lines = source.split("\n")
 
-    def _line_number(match: re.Match) -> int:
+    def _line_number(match: re.Match[str]) -> int:
         return source[: match.start()].count("\n") + 1
 
     # Functions

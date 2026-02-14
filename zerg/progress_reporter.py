@@ -24,7 +24,7 @@ class TierProgress:
     success: bool
     retry: int = 0
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -50,7 +50,7 @@ class WorkerProgress:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> WorkerProgress:
+    def from_dict(cls, data: dict[str, Any]) -> WorkerProgress:
         tiers = [TierProgress(**t) for t in data.get("tier_results", [])]
         return cls(
             worker_id=data["worker_id"],

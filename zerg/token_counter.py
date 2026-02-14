@@ -10,6 +10,7 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from zerg.config import TokenMetricsConfig, ZergConfig
 from zerg.constants import STATE_DIR
@@ -43,7 +44,7 @@ class TokenCounter:
                 self._config = TokenMetricsConfig()
 
         self._cache_path = Path(STATE_DIR) / "token-cache.json"
-        self._cache: OrderedDict[str, dict] = OrderedDict()
+        self._cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._cache_lock = threading.Lock()
         self._cache_dirty = False
 

@@ -26,6 +26,7 @@ if TYPE_CHECKING:
         ScoredHypothesis,
         TimelineEvent,
     )
+    from zerg.types import DiagnosticResultDict
 
 console = Console()
 logger = get_logger("debug")
@@ -113,7 +114,7 @@ class DiagnosticResult:
     timeline: list[TimelineEvent] = field(default_factory=list)
     scored_hypotheses: list[ScoredHypothesis] = field(default_factory=list)
     correlations: list[dict[str, Any]] = field(default_factory=list)
-    env_report: dict[str, Any] | None = None
+    env_report: dict[str, Any] | DiagnosticResultDict | None = None
     fix_suggestions: list[str] = field(default_factory=list)
     # Design escalation fields
     design_escalation: bool = False

@@ -353,7 +353,7 @@ class VerificationExecutor:
             config = VerificationTiersConfig()
 
         tiered = VerificationTiers(config=config, default_timeout=self.default_timeout)
-        result = tiered.execute(task, cwd=str(cwd) if cwd else None, env=env)
+        result = tiered.execute(dict(task), cwd=str(cwd) if cwd else None, env=env)
 
         # Record tier results as standard verification results for compatibility
         for tier in result.tiers:

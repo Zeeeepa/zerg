@@ -396,7 +396,7 @@ def create_task_graph_template(
     timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # Create template with example tasks
-    task_graph = {
+    task_graph: dict[str, Any] = {
         "feature": feature,
         "version": "2.0",
         "generated": timestamp,
@@ -586,14 +586,15 @@ def create_task_graph_template(
     # Generate steps for each task if detail level is medium or high
     if detail_level in ("medium", "high"):
         step_generator = StepGenerator(project_root=path.parent.parent.parent)
-        for task in task_graph["tasks"]:
-            steps = step_generator.generate_steps_dict(task, detail_level=detail_level)
+        tasks_list: list[dict[str, Any]] = task_graph["tasks"]
+        for task in tasks_list:
+            steps = step_generator.generate_steps(task, detail_level=detail_level)
             if steps:
-                task["steps"] = steps
+                task["steps"] = [s.to_dict() for s in steps]
         # Update metadata to reflect step generation
         task_graph["detail_level"] = detail_level
-        step_count = sum(len(t.get("steps", [])) for t in task_graph["tasks"])
-        console.print(f"  [dim]Generated {step_count} steps across {len(task_graph['tasks'])} tasks[/dim]")
+        step_count = sum(len(t.get("steps", [])) for t in tasks_list)
+        console.print(f"  [dim]Generated {step_count} steps across {len(tasks_list)} tasks[/dim]")
 
     with open(path, "w") as f:
         json_dump(task_graph, f, indent=True)

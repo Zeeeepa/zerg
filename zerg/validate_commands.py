@@ -682,7 +682,7 @@ class ScaffoldGenerator:
         self,
         name: str,
         description: str = "",
-        flags: list[dict] | None = None,
+        flags: list[dict[str, str]] | None = None,
     ) -> Path:
         """Generate command file from template.
 
@@ -744,7 +744,7 @@ class ScaffoldGenerator:
 
         return output_path
 
-    def _generate_flags_table(self, flags: list[dict]) -> str:
+    def _generate_flags_table(self, flags: list[dict[str, str]]) -> str:
         """Generate markdown table for flags.
 
         Args:

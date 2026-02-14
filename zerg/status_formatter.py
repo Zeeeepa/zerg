@@ -119,7 +119,7 @@ def format_health_table(
         task_id = hb.get("task_id") or "-"
         step = hb.get("step", "unknown")
         progress_pct = hb.get("progress_pct", 0)
-        restarts = _count_restarts(progress_data, worker_id)
+        restarts = _count_restarts(progress_data, int(worker_id))
 
         cells = [
             str(worker_id),

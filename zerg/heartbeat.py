@@ -8,7 +8,7 @@ import tempfile
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from zerg.constants import STATE_DIR
 from zerg.logging import get_logger
@@ -33,11 +33,11 @@ class Heartbeat:
     total_steps: int | None = None  # Total steps in task
     step_states: list[str] | None = None  # State per step: "completed", "in_progress", "pending", "failed"
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict) -> Heartbeat:
+    def from_dict(cls, data: dict[str, Any]) -> Heartbeat:
         return cls(
             worker_id=data["worker_id"],
             timestamp=data["timestamp"],

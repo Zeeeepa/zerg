@@ -407,7 +407,7 @@ def save_config(config: dict[str, Any]) -> None:
     config_path = Path(".zerg/config.yaml")
 
     # Convert to YAML-like format
-    import yaml  # type: ignore[import-untyped]
+    import yaml
 
     try:
         with open(config_path, "w") as f:

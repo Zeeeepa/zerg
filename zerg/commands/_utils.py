@@ -220,7 +220,7 @@ def release_feature_lock(feature: str, gsd_dir: str = ".gsd") -> None:
         pass
 
 
-def check_feature_lock(feature: str, gsd_dir: str = ".gsd") -> dict | None:
+def check_feature_lock(feature: str, gsd_dir: str = ".gsd") -> dict[str, float | int] | None:
     """Check if a feature is locked.
 
     Returns lock info dict if an active lock exists, or None if unlocked
