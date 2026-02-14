@@ -51,7 +51,7 @@ echo "$(date -Iseconds)" > ".gsd/specs/$FEATURE/.started"
 
 ## Phase 0: Pre-Execution Validation
 
-If `--skip-validation` is in $ARGUMENTS, skip this phase entirely and continue to Enter Plan Mode.
+If `--skip-validation` is in $ARGUMENTS, skip this phase entirely and continue to Phase 1.
 
 Before proceeding, validate this plan hasn't been superseded:
 
@@ -93,19 +93,7 @@ Before proceeding, validate this plan hasn't been superseded:
      Use AskUserQuestion to get user decision.
 
    IF validation passes:
-     Continue to Enter Plan Mode.
-
----
-
-## Enter Plan Mode
-
-Call the **EnterPlanMode** tool to enter Claude Code plan mode.
-
-Plan mode provides read-only tools (Glob, Grep, Read, WebSearch, AskUserQuestion) for deep
-codebase exploration. You will stay in plan mode for Phases 1-2, then exit before Phase 3
-when you need to write files.
-
-⚠️ Do NOT attempt to write files or run Bash while in plan mode — those tools are restricted.
+     Continue to Phase 1.
 
 ---
 
@@ -151,34 +139,9 @@ Ask clarifying questions grouped logically. Don't ask everything at once. Cover:
 
 See details file for full question categories.
 
-## Exit Plan Mode (Before Phase 3)
-
-After completing Phase 2, you have gathered all requirements through read-only exploration and
-user questions. You now need to write files.
-
-Write your plan summarizing:
-- Key findings from Phase 1 (codebase patterns, tech stack, existing conventions)
-- Requirements gathered from Phase 2 (functional, non-functional, scope, acceptance criteria)
-- Files to be created: `.gsd/specs/{feature}/requirements.md`
-
-Then call **ExitPlanMode** to present the plan for approval.
-
-### ⛔ POST-EXIT GUARD (NON-NEGOTIABLE)
-
-After the user approves and plan mode exits, you are STILL inside the `/z:plan` command.
-
-Your ONLY remaining tasks are:
-1. Phase 3: Write `requirements.md` to `.gsd/specs/{feature}/`
-2. Phase 4: Check infrastructure needs
-3. Phase 5: Present requirements for user approval
-4. Phase 5.5: Mark task complete and STOP
-
-**DO NOT implement the feature. DO NOT write code. DO NOT invoke /z:design.**
-**You are writing PLANNING DOCUMENTS, not implementing.**
-
----
-
 ### Phase 3: Generate requirements.md
+
+After completing Phases 1-2, proceed directly to writing the requirements document.
 
 Write comprehensive requirements document to `.gsd/specs/{feature}/requirements.md`.
 
