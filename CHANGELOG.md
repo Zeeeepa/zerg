@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Plan mode deadlock in `/z:plan` — replaced manual "Shift+Tab" instruction with programmatic `EnterPlanMode`/`ExitPlanMode` tool calls
+- Skip-to-implement behavior after plan mode exit — added POST-EXIT GUARD sections to `/z:plan` and `/z:brainstorm`
+
 ## [0.2.1] - 2026-02-11
 
 ### Added

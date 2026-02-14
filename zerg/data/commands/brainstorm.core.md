@@ -85,6 +85,18 @@ This ensures the task system tracks the full lifecycle: start -> in_progress -> 
 
 ---
 
+## Enter Plan Mode
+
+Call the **EnterPlanMode** tool to enter Claude Code plan mode.
+
+Plan mode provides read-only tools for deep codebase exploration and research. You will stay
+in plan mode for Phases 1-2.7 (Research through YAGNI Gate), then exit before Phase 3 when
+you need to write files and create GitHub issues.
+
+⚠️ Do NOT attempt to write files or run Bash while in plan mode — those tools are restricted.
+
+---
+
 ## Workflow Overview
 
 ### Phase 1: Research
@@ -150,6 +162,33 @@ Runs in both modes. Present all identified features via AskUserQuestion (multiSe
 - Options: Each identified feature with one-line description
 
 Kept features → proceed to Phase 3. Dropped features → logged in `.gsd/specs/{session-id}/deferred.md`.
+
+## Exit Plan Mode (Before Phase 3)
+
+After completing Phase 2.7 (YAGNI Gate), you have completed all discovery. You now need to
+write files and create GitHub issues.
+
+Write your plan summarizing:
+- Research findings from Phase 1
+- Discovery insights from Phase 2
+- Trade-off decisions from Phase 2.5
+- Validated design from Phase 2.6
+- Features passing YAGNI Gate from Phase 2.7
+
+Then call **ExitPlanMode** to present the plan for approval.
+
+### ⛔ POST-EXIT GUARD (NON-NEGOTIABLE)
+
+After the user approves and plan mode exits, you are STILL inside `/z:brainstorm`.
+
+Your ONLY remaining tasks are:
+1. Phase 3: Save research/transcript files, create GitHub issues
+2. Phase 4: Present handoff recommendations and STOP
+
+**DO NOT implement features. DO NOT invoke /z:plan. DO NOT write code.**
+**You are completing the brainstorm workflow, not starting implementation.**
+
+---
 
 ### Phase 3: Issue Generation
 
