@@ -113,8 +113,6 @@ jobs:
     environment: pypi
     permissions:
       id-token: write
-      attestations: write
-      contents: read
     steps:
       - name: Download dist artifacts
         uses: actions/download-artifact@v7
@@ -124,26 +122,3 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          attestations: true
-
-  attestation:
-    name: Generate provenance attestation
-    needs: [publish-pypi]
-    if: github.event.release.prerelease == false
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      attestations: write
-      contents: read
-    steps:
-      - name: Download dist artifacts
-        uses: actions/download-artifact@v7
-        with:
-          name: dist
-          path: dist/
-
-      - name: Generate SLSA provenance
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: dist/*
