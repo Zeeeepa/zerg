@@ -2,6 +2,9 @@
 
 This module provides intelligent fetching of security rules based on
 detected project languages and frameworks.
+
+Migrated from zerg/security_rules.py — complete copy of all functions,
+classes, and constants.
 """
 
 import json
